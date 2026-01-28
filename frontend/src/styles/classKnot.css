@@ -1,0 +1,124 @@
+/* ===================== ROOT ===================== */
+:root {
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bg-light: #f5f7fa;
+  --white: #ffffff;
+
+  --success: #38a169;
+  --error: #e53e3e;
+  --primary: #764ba2;
+
+  --shadow-sm: 0 4px 10px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* ===================== GLOBAL ===================== */
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-light);
+  color: #2d3748;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* ===================== HEADER ===================== */
+.ck-header {
+  background: var(--primary-gradient);
+  color: white;
+  padding: 30px 20px;
+}
+
+.ck-header h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.ck-header p {
+  margin-top: 6px;
+  opacity: 0.9;
+}
+
+/* ===================== CONTAINER ===================== */
+.ck-container {
+  max-width: 1000px;
+  margin: -40px auto 0 auto;
+  padding: 20px;
+}
+
+/* ===================== CARD ===================== */
+.ck-card {
+  background: var(--white);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.ck-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ===================== BUTTONS ===================== */
+.ck-btn {
+  padding: 10px 18px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.ck-btn-primary {
+  background: var(--primary-gradient);
+  color: white;
+}
+
+.ck-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.ck-btn-danger {
+  background: var(--error);
+  color: white;
+}
+
+/* ===================== STATUS ===================== */
+.ck-success {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.ck-error {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.ck-primary {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ===================== FOOTER ===================== */
+.ck-footer {
+  text-align: center;
+  padding: 30px 10px;
+  color: #718096;
+  font-size: 14px;
+}
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 768px) {
+  .ck-header h1 {
+    font-size: 22px;
+  }
+
+  .ck-container {
+    padding: 15px;
+  }
+}
