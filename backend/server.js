@@ -24,7 +24,7 @@ const app = express();
 /* -------------------- CORS FIX -------------------- */
 app.use(
   cors({
-    origin: "https://vercel.com/kidsafes-projects/class-knot/8f8TapfqNK6n5iEq2qfxmBVhCNdX",
+    origin: "https://class-knot.vercel.app",
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE","OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
