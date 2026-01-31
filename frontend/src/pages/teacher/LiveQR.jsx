@@ -13,37 +13,39 @@ export default function LiveQR() {
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   const expiryRef = useRef(null);
+  const serverOffsetRef = useRef(0);
   const tickRef = useRef(null);
   const rowRef = useRef(null);
 
-  /* Fetch QR ONLY when needed */
   const fetchQR = async () => {
     const res = await api.get(`/qr/generate/${qrSessionId}`);
     setQrData(res.data);
+
+    // 🔥 calculate server-client time offset ONCE
+    serverOffsetRef.current = res.data.serverNow - Date.now();
     expiryRef.current = res.data.expiresAt;
   };
 
-  /* Countdown driven ONLY by expiresAt */
   useEffect(() => {
     fetchQR();
 
     tickRef.current = setInterval(() => {
       if (!expiryRef.current) return;
 
-      const diffMs = expiryRef.current - Date.now();
+      const serverTime = Date.now() + serverOffsetRef.current;
+      const diffMs = expiryRef.current - serverTime;
       const remaining = Math.max(0, Math.ceil(diffMs / 1000));
 
       setSecondsLeft(remaining);
 
       if (remaining === 0) {
-        fetchQR(); // 🔥 refresh ONLY after expiry
+        fetchQR();
       }
     }, 250);
 
     return () => clearInterval(tickRef.current);
   }, [qrSessionId]);
 
-  /* Row change logic (independent) */
   useEffect(() => {
     rowRef.current = setInterval(async () => {
       const res = await api.post(`/qr/next-row/${qrSessionId}`);
@@ -86,7 +88,7 @@ export default function LiveQR() {
         </div>
 
         <p className="mt-5 text-xs text-gray-400">
-          Countdown synced with server
+          Countdown synced with server clock
         </p>
       </div>
     </div>
