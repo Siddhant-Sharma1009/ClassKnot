@@ -190,10 +190,12 @@ export const generateQR = async (req, res) => {
   await session.save();
 
   res.json({
-    qrSessionId,
-    attendanceSlotId: session.attendanceSlotId,
-    row: session.currentRow,
-    token,
-    expiresAt
-  });
+  qrSessionId,
+  attendanceSlotId: session.attendanceSlotId,
+  row: session.currentRow,
+  token,
+  expiresAt,
+  serverNow: Date.now() // 🔥 ADD THIS
+});
+
 };
