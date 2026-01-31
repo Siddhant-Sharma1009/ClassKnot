@@ -12,37 +12,38 @@ export default function LiveQR() {
   const [qrData, setQrData] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
+  const expiryRef = useRef(null);
   const tickRef = useRef(null);
   const rowRef = useRef(null);
-  const expiryRef = useRef(null);
 
-  /* Fetch QR from backend (single source of truth) */
+  /* Fetch QR ONLY when needed */
   const fetchQR = async () => {
     const res = await api.get(`/qr/generate/${qrSessionId}`);
     setQrData(res.data);
     expiryRef.current = res.data.expiresAt;
   };
 
-  /* Accurate countdown derived from backend time */
+  /* Countdown driven ONLY by expiresAt */
   useEffect(() => {
     fetchQR();
 
     tickRef.current = setInterval(() => {
       if (!expiryRef.current) return;
 
-      const diff = expiryRef.current - Date.now();
-      const remaining = Math.max(0, Math.ceil(diff / 1000));
+      const diffMs = expiryRef.current - Date.now();
+      const remaining = Math.max(0, Math.ceil(diffMs / 1000));
+
       setSecondsLeft(remaining);
 
       if (remaining === 0) {
-        fetchQR();
+        fetchQR(); // 🔥 refresh ONLY after expiry
       }
-    }, 500);
+    }, 250);
 
     return () => clearInterval(tickRef.current);
   }, [qrSessionId]);
 
-  /* Row change */
+  /* Row change logic (independent) */
   useEffect(() => {
     rowRef.current = setInterval(async () => {
       const res = await api.post(`/qr/next-row/${qrSessionId}`);
@@ -85,7 +86,7 @@ export default function LiveQR() {
         </div>
 
         <p className="mt-5 text-xs text-gray-400">
-          Countdown synced with server time
+          Countdown synced with server
         </p>
       </div>
     </div>
