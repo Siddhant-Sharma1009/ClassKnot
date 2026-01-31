@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import QRCode from "react-qr-code";
 import api from "../../api/axios";
 
-const QR_DURATION = 5;      // seconds
+const QR_DURATION = 6;      // seconds
 const ROW_DURATION = 15;   // seconds
 
 export default function LiveQR() {
