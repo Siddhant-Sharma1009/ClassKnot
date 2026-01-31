@@ -11,39 +11,44 @@ export default function LiveQR() {
   const navigate = useNavigate();
 
   const [qrData, setQrData] = useState(null);
-  const [seconds, setSeconds] = useState(QR_VALID_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState(QR_VALID_SECONDS);
 
-  const countdownRef = useRef(null);
+  const expiryTimeRef = useRef(null);
+  const tickRef = useRef(null);
   const rowTimerRef = useRef(null);
 
-  /* Fetch QR + reset countdown */
+  /* Fetch QR and set exact expiry time */
   const fetchQR = async () => {
     try {
       const res = await api.get(`/qr/generate/${qrSessionId}`);
       setQrData(res.data);
-      setSeconds(QR_VALID_SECONDS);
+
+      // exact expiry timestamp
+      expiryTimeRef.current = Date.now() + QR_VALID_SECONDS * 1000;
+      setSecondsLeft(QR_VALID_SECONDS);
     } catch (err) {
       console.error("QR fetch failed", err);
     }
   };
 
-  /* QR refresh + countdown (single source of truth) */
+  /* Accurate countdown tick */
   useEffect(() => {
     fetchQR();
 
-    countdownRef.current = setInterval(() => {
-      setSeconds(prev => {
-        if (prev <= 1) {
-          fetchQR();        // fetch new QR when time ends
-          return QR_VALID_SECONDS;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    tickRef.current = setInterval(() => {
+      if (!expiryTimeRef.current) return;
 
-    return () => {
-      clearInterval(countdownRef.current);
-    };
+      const diffMs = expiryTimeRef.current - Date.now();
+      const remaining = Math.max(0, Math.ceil(diffMs / 1000));
+
+      setSecondsLeft(remaining);
+
+      if (remaining === 0) {
+        fetchQR();
+      }
+    }, 250); // high-resolution tick (still cheap)
+
+    return () => clearInterval(tickRef.current);
   }, [qrSessionId]);
 
   /* Row change timer */
@@ -51,7 +56,6 @@ export default function LiveQR() {
     rowTimerRef.current = setInterval(async () => {
       try {
         const res = await api.post(`/qr/next-row/${qrSessionId}`);
-
         if (!res.data.isActive) {
           navigate(`/teacher/qr/preview/${qrSessionId}`);
         }
@@ -60,9 +64,7 @@ export default function LiveQR() {
       }
     }, ROW_CHANGE_SECONDS * 1000);
 
-    return () => {
-      clearInterval(rowTimerRef.current);
-    };
+    return () => clearInterval(rowTimerRef.current);
   }, [qrSessionId, navigate]);
 
   if (!qrData) {
@@ -87,7 +89,7 @@ export default function LiveQR() {
         <p className="text-sm text-gray-600 mb-6">
           Valid for:{" "}
           <span className="font-semibold text-indigo-600">
-            {seconds}s
+            {secondsLeft}s
           </span>
         </p>
 
@@ -96,7 +98,7 @@ export default function LiveQR() {
         </div>
 
         <p className="mt-5 text-xs text-gray-400">
-          QR refreshes every {QR_VALID_SECONDS} seconds automatically
+          QR refreshes exactly every {QR_VALID_SECONDS} seconds
         </p>
       </div>
     </div>
