@@ -8,7 +8,7 @@ export default function QrScannerModal({ onClose }) {
   const scannedRef = useRef(false);
 
   useEffect(() => {
-    // 🚫 Prevent double initialization (React StrictMode)
+    // 🚫 Prevent double init (React StrictMode)
     if (startedRef.current) return;
     startedRef.current = true;
 
@@ -17,7 +17,7 @@ export default function QrScannerModal({ onClose }) {
 
     const stopScannerSafely = async () => {
       try {
-        if (scanner.getState() === 2) { // SCANNING
+        if (scanner.getState() === 2) {
           await scanner.stop();
         }
       } catch {}
@@ -29,7 +29,7 @@ export default function QrScannerModal({ onClose }) {
     const startScanner = async () => {
       try {
         await scanner.start(
-          { facingMode: "environment" }, // laptop-safe
+          { facingMode: "environment" },
           {
             fps: 20,
             qrbox: { width: 300, height: 300 },
@@ -42,15 +42,25 @@ export default function QrScannerModal({ onClose }) {
             try {
               const data = JSON.parse(decodedText);
 
-              if (!data.attendanceSlotId) {
-                alert("❌ Invalid QR code");
+              // 🔐 STRICT QR VALIDATION
+              if (
+                !data.qrSessionId ||
+                !data.attendanceSlotId ||
+                data.row == null ||
+                !data.token
+              ) {
+                alert("❌ Invalid or incomplete QR code");
                 await stopScannerSafely();
                 onClose();
                 return;
               }
 
-              await api.post("/attendance/mark-qr", {
-                attendanceSlotId: data.attendanceSlotId
+              await api.post("/qr/submit", {
+                qrSessionId: data.qrSessionId,
+                attendanceSlotId: data.attendanceSlotId,
+                row: data.row,
+                token: data.token,
+                expiresAt: data.expiresAt
               });
 
               alert("✅ Attendance marked successfully");

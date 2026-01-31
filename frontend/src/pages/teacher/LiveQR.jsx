@@ -1,122 +1,91 @@
-import { Html5Qrcode } from "html5-qrcode";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import QRCode from "react-qr-code";
 import api from "../../api/axios";
 
-export default function QrScannerModal({ onClose }) {
-  const scannerRef = useRef(null);
-  const startedRef = useRef(false);
-  const scannedRef = useRef(false);
+export default function LiveQR() {
+  const { qrSessionId } = useParams();
+  const navigate = useNavigate();
 
+  const [qrData, setQrData] = useState(null);
+  const [seconds, setSeconds] = useState(5);
+
+  /* Fetch QR every 5 seconds */
   useEffect(() => {
-    // 🚫 Prevent double init (React StrictMode)
-    if (startedRef.current) return;
-    startedRef.current = true;
-
-    const scanner = new Html5Qrcode("qr-reader");
-    scannerRef.current = scanner;
-
-    const stopScannerSafely = async () => {
-      try {
-        if (scanner.getState() === 2) {
-          await scanner.stop();
-        }
-      } catch {}
-      try {
-        await scanner.clear();
-      } catch {}
+    const fetchQR = async () => {
+      const res = await api.get(`/qr/generate/${qrSessionId}`);
+      setQrData(res.data);
+      setSeconds(5);
     };
 
-    const startScanner = async () => {
-      try {
-        await scanner.start(
-          { facingMode: "environment" },
-          {
-            fps: 20,
-            qrbox: { width: 300, height: 300 },
-            disableFlip: true
-          },
-          async (decodedText) => {
-            if (scannedRef.current) return;
-            scannedRef.current = true;
+    fetchQR();
+    const qrInterval = setInterval(fetchQR, 3000);
 
-            try {
-              const data = JSON.parse(decodedText);
+    return () => clearInterval(qrInterval);
+  }, [qrSessionId]);
 
-              // 🔐 STRICT QR VALIDATION
-              if (
-                !data.qrSessionId ||
-                !data.attendanceSlotId ||
-                data.row == null ||
-                !data.token
-              ) {
-                alert("❌ Invalid or incomplete QR code");
-                await stopScannerSafely();
-                onClose();
-                return;
-              }
+  /* Countdown */
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSeconds(s => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-              await api.post("/qr/submit", {
-                qrSessionId: data.qrSessionId,
-                attendanceSlotId: data.attendanceSlotId,
-                row: data.row,
-                token: data.token,
-                expiresAt: data.expiresAt
-              });
+  /* Row change every 20 sec */
+  useEffect(() => {
+    const rowTimer = setInterval(async () => {
+      const res = await api.post(`/qr/next-row/${qrSessionId}`);
 
-              alert("✅ Attendance marked successfully");
-              await stopScannerSafely();
-              onClose();
-            } catch (err) {
-              alert(
-                err.response?.data?.message ||
-                "❌ Failed to mark attendance"
-              );
-              await stopScannerSafely();
-              onClose();
-            }
-          },
-          () => {} // ignore scan errors
-        );
-      } catch {
-        alert("❌ Camera not accessible");
-        await stopScannerSafely();
-        onClose();
+      if (!res.data.isActive) {
+        navigate(`/teacher/qr/preview/${qrSessionId}`);
       }
-    };
+    }, 15000);
 
-    startScanner();
+    return () => clearInterval(rowTimer);
+  }, [qrSessionId, navigate]);
 
-    return () => {
-      stopScannerSafely();
-    };
-  }, [onClose]);
+  if (!qrData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <p className="text-gray-500">Loading QR…</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
-      <div className="bg-white rounded-xl p-6 w-[95%] max-w-sm">
-        <h3 className="text-lg font-semibold mb-4 text-center">
-          Scan Attendance QR
-        </h3>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+      <div className="
+        bg-white
+        border border-gray-200
+        rounded-xl
+        shadow-sm
+        p-8
+        text-center
+        w-full max-w-[420px]
+      ">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+          QR Attendance
+        </h2>
 
-        {/* ⚠️ MUST EXIST ONLY ONCE */}
-        <div id="qr-reader" />
+        <p className="text-sm text-gray-600 mb-1">
+          Row: <span className="font-medium">{qrData.row}</span>
+        </p>
 
-        <button
-          onClick={async () => {
-            try {
-              if (scannerRef.current?.getState() === 2) {
-                await scannerRef.current.stop();
-              }
-            } catch {}
-            try {
-              await scannerRef.current?.clear();
-            } catch {}
-            onClose();
-          }}
-          className="mt-4 w-full py-2 rounded-lg bg-red-500 text-white"
-        >
-          Cancel
-        </button>
+        <p className="text-sm text-gray-600 mb-6">
+          Valid for:{" "}
+          <span className="font-semibold text-indigo-600">
+            {seconds}s
+          </span>
+        </p>
+
+        <div className="flex justify-center bg-white p-4 rounded-lg border border-gray-200">
+          <QRCode value={JSON.stringify(qrData)} size={256} />
+        </div>
+
+        <p className="mt-5 text-xs text-gray-400">
+          QR refreshes automatically every 5 seconds
+        </p>
       </div>
     </div>
   );
