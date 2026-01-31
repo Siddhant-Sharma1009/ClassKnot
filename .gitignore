@@ -13,9 +13,30 @@ yarn-error.log*
 # FRONTEND (React / Vite / Next)
 # ========================
 frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.*
 
-
+# ========================
 # BACKEND (Node / Express)
 # ========================
 backend/node_modules/
 backend/.env
+backend/.env.*
+backend/logs/
+backend/uploads/
+
+# ========================
+# OS & EDITOR
+# ========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ========================
+# MISC
+# ========================
+coverage/
+*.sqlite

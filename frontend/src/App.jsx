@@ -20,6 +20,7 @@ import QRPreview from "./pages/teacher/QRPreview";
 /* STUDENT PAGES */
 import StudentDashboard from "./pages/student/StudentDashboard";
 import ScanQR from "./pages/student/ScanQR";
+import StudentProfile from "./pages/student/StudentProfile";
 
 /* HOD PAGES */
 import HodDashboard from "./pages/hod/hodDashboard";
@@ -52,6 +53,9 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/student/profile" element={<StudentProfile />} />
+
 
         {/* ================= TEACHER ================= */}
         <Route

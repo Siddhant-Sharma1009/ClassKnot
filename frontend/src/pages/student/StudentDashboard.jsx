@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import QrScannerModal from "./ScanQR";
 
@@ -10,9 +11,11 @@ export default function StudentDashboard() {
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
 
-  // ✅ NEW (overall attendance)
+  // ✅ overall attendance
   const [showOverall, setShowOverall] = useState(false);
   const [overallData, setOverallData] = useState([]);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
@@ -36,13 +39,12 @@ export default function StudentDashboard() {
       const res = await api.get(`/student/subject/${subjectCode}/attendance`);
       setSubjectAttendance(res.data);
       setSelectedSubject(subjectName);
-      setShowOverall(false); // ✅ don’t mix views
+      setShowOverall(false);
     } catch {
       alert("Failed to load attendance data");
     }
   };
 
-  // ✅ NEW: load overall percentage (ON BUTTON CLICK ONLY)
   const loadOverallAttendance = async () => {
     try {
       const data = [];
@@ -70,7 +72,7 @@ export default function StudentDashboard() {
     window.location.href = "/";
   };
 
-  /* ================= LOADING / ERROR ================= */
+  /* ================= LOADING ================= */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
@@ -92,14 +94,24 @@ export default function StudentDashboard() {
 
       {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-50 bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg p-5">
-        <div className="max-w-[1200px] mx-auto flex justify-between items-center">
+        <div className="max-w-[1200px] mx-auto flex justify-between items-center gap-3">
           <h1 className="text-2xl font-semibold">📚 Student Dashboard</h1>
-          <button
-            onClick={logout}
-            className="px-5 py-2 bg-white/20 border border-white/30 rounded-md text-sm font-medium hover:bg-white/30"
-          >
-            Logout
-          </button>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate("/student/profile")}
+              className="px-4 py-2 bg-white/20 border border-white/30 rounded-md text-sm font-medium hover:bg-white/30"
+            >
+              👤 Profile
+            </button>
+
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-red-500/80 rounded-md text-sm font-medium hover:bg-red-600"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -139,7 +151,7 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* ================= NEW BUTTONS ONLY ================= */}
+          {/* ================= BUTTONS ================= */}
           <div className="flex flex-wrap gap-4 pt-6 border-t">
             <button
               onClick={() => setShowScanner(true)}
@@ -157,7 +169,7 @@ export default function StudentDashboard() {
           </div>
         </section>
 
-        {/* ================= OVERALL ATTENDANCE % ================= */}
+        {/* ================= OVERALL ATTENDANCE ================= */}
         {showOverall && (
           <section className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
             <h3 className="text-xl font-semibold text-gray-800 mb-6">
@@ -171,10 +183,9 @@ export default function StudentDashboard() {
                     <span className="font-medium">
                       {sub.code} – {sub.name}
                     </span>
-                    <span className="font-semibold">
-                      {sub.percentage}%
-                    </span>
+                    <span className="font-semibold">{sub.percentage}%</span>
                   </div>
+
                   <div className="w-full bg-slate-200 rounded-full h-3">
                     <div
                       className={`h-3 rounded-full ${
@@ -191,7 +202,7 @@ export default function StudentDashboard() {
           </section>
         )}
 
-        {/* ================= SUBJECTS (UNCHANGED) ================= */}
+        {/* ================= SUBJECTS ================= */}
         <section>
           <h3 className="text-xl font-semibold text-gray-800 mb-4">
             📚 My Subjects
@@ -222,7 +233,7 @@ export default function StudentDashboard() {
           </div>
         </section>
 
-        {/* ================= ATTENDANCE DETAILS (UNCHANGED) ================= */}
+        {/* ================= ATTENDANCE DETAILS ================= */}
         {subjectAttendance && (
           <section className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
             <h3 className="text-xl font-semibold text-gray-800 mb-6">
@@ -252,17 +263,6 @@ export default function StudentDashboard() {
 }
 
 /* ================= HELPERS ================= */
-function Stat({ label, value, color }) {
-  return (
-    <div className="text-center p-4 bg-slate-50 rounded-lg">
-      <div className={`text-3xl font-bold ${color}`}>{value}</div>
-      <div className="text-xs uppercase tracking-wide text-gray-500 mt-1">
-        {label}
-      </div>
-    </div>
-  );
-}
-
 function Summary({ icon, label, value }) {
   return (
     <div className="p-5 bg-slate-50 rounded-lg text-center border-l-4 border-indigo-500">
