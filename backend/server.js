@@ -50,7 +50,5 @@ app.use("/api/hod", hodRoutes);
 app.use("/api/ai", aiRoutes);
 
 /* -------------------- SERVER -------------------- */
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
-  console.log(`🚀 Backend running on http://localhost:${PORT}`)
-);
+const PORT = process.env.PORT;
+app.listen(PORT);
