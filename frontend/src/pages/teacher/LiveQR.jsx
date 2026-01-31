@@ -1,48 +1,68 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import QRCode from "react-qr-code";
 import api from "../../api/axios";
+
+const QR_VALID_SECONDS = 5;
+const ROW_CHANGE_SECONDS = 15;
 
 export default function LiveQR() {
   const { qrSessionId } = useParams();
   const navigate = useNavigate();
 
   const [qrData, setQrData] = useState(null);
-  const [seconds, setSeconds] = useState(5);
+  const [seconds, setSeconds] = useState(QR_VALID_SECONDS);
 
-  /* Fetch QR every 5 seconds */
-  useEffect(() => {
-    const fetchQR = async () => {
+  const countdownRef = useRef(null);
+  const rowTimerRef = useRef(null);
+
+  /* Fetch QR + reset countdown */
+  const fetchQR = async () => {
+    try {
       const res = await api.get(`/qr/generate/${qrSessionId}`);
       setQrData(res.data);
-      setSeconds(5);
-    };
+      setSeconds(QR_VALID_SECONDS);
+    } catch (err) {
+      console.error("QR fetch failed", err);
+    }
+  };
 
+  /* QR refresh + countdown (single source of truth) */
+  useEffect(() => {
     fetchQR();
-    const qrInterval = setInterval(fetchQR, 3000);
 
-    return () => clearInterval(qrInterval);
+    countdownRef.current = setInterval(() => {
+      setSeconds(prev => {
+        if (prev <= 1) {
+          fetchQR();        // fetch new QR when time ends
+          return QR_VALID_SECONDS;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      clearInterval(countdownRef.current);
+    };
   }, [qrSessionId]);
 
-  /* Countdown */
+  /* Row change timer */
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSeconds(s => (s > 0 ? s - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    rowTimerRef.current = setInterval(async () => {
+      try {
+        const res = await api.post(`/qr/next-row/${qrSessionId}`);
 
-  /* Row change every 20 sec */
-  useEffect(() => {
-    const rowTimer = setInterval(async () => {
-      const res = await api.post(`/qr/next-row/${qrSessionId}`);
-
-      if (!res.data.isActive) {
-        navigate(`/teacher/qr/preview/${qrSessionId}`);
+        if (!res.data.isActive) {
+          navigate(`/teacher/qr/preview/${qrSessionId}`);
+        }
+      } catch (err) {
+        console.error("Row update failed", err);
       }
-    }, 15000);
+    }, ROW_CHANGE_SECONDS * 1000);
 
-    return () => clearInterval(rowTimer);
+    return () => {
+      clearInterval(rowTimerRef.current);
+    };
   }, [qrSessionId, navigate]);
 
   if (!qrData) {
@@ -55,15 +75,7 @@ export default function LiveQR() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
-      <div className="
-        bg-white
-        border border-gray-200
-        rounded-xl
-        shadow-sm
-        p-8
-        text-center
-        w-full max-w-[420px]
-      ">
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 text-center w-full max-w-[420px]">
         <h2 className="text-2xl font-semibold text-gray-800 mb-2">
           QR Attendance
         </h2>
@@ -84,7 +96,7 @@ export default function LiveQR() {
         </div>
 
         <p className="mt-5 text-xs text-gray-400">
-          QR refreshes automatically every 5 seconds
+          QR refreshes every {QR_VALID_SECONDS} seconds automatically
         </p>
       </div>
     </div>
