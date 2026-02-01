@@ -33,10 +33,17 @@ const qrSubmissionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-/* Prevent duplicate submission in a session*/
+/**
+ * ONE STUDENT → ONE SUBMISSION → PER SESSION
+ */
 qrSubmissionSchema.index(
-  { qrSessionId: 1, studentId: 1},
-  { unique: true }
+  { qrSessionId: 1, studentId: 1 },
+  { unique: true, name: "unique_student_per_session" }
 );
 
-export default mongoose.model("QRSubmission", qrSubmissionSchema);
+const QRSubmission = mongoose.model("QRSubmission", qrSubmissionSchema);
+
+// FORCE index creation at startup
+QRSubmission.syncIndexes();
+
+export default QRSubmission;
