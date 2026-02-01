@@ -1,9 +1,10 @@
 import QRSession from "../models/QRSession.js";
-import QRSubmission from "../models/QRSubmission.js";   // 🔥 THIS WAS MISSING
+import QRSubmission from "../models/QRSubmission.js";   
 import AttendanceRecord from "../models/AttendanceRecord.js";
 import AttendanceSlot from "../models/AttendanceSlot.js";
 import { v4 as uuid } from "uuid";
 import crypto from "crypto";
+import Student from "../models/Student.js";
 
 export const startQRSession = async (req, res) => {
   const { attendanceSlotId, totalRows } = req.body;
@@ -101,33 +102,63 @@ export const submitQR = async (req, res) => {
 
 
 
+
+
 export const getQRPreview = async (req, res) => {
-  const { qrSessionId } = req.params;
+  try {
+    const { qrSessionId } = req.params;
 
-  const qrSession = await QRSession.findById(qrSessionId);
-  if (!qrSession) {
-    return res.status(404).json({ message: "QR session not found" });
+    const qrSession = await QRSession.findById(qrSessionId);
+    if (!qrSession) {
+      return res.status(404).json({ message: "QR session not found" });
+    }
+
+    // 1️⃣ Get submissions (studentId = userId)
+    const submissions = await QRSubmission.find({ qrSessionId }).lean();
+
+    // 2️⃣ Collect userIds
+    const userIds = submissions.map(s => s.studentId);
+
+    // 3️⃣ Find students by userId
+    const students = await Student.find({
+      userId: { $in: userIds }
+    })
+      .select("userId collegeId name")
+      .lean();
+
+    // 4️⃣ Map userId → student
+    const studentMap = {};
+    students.forEach(st => {
+      studentMap[st.userId.toString()] = st;
+    });
+
+    // 5️⃣ Attach student info to submissions
+    const enrichedSubmissions = submissions.map(s => ({
+      ...s,
+      student: studentMap[s.studentId.toString()] || null
+    }));
+
+    /* Row-wise counts */
+    const rowStats = {};
+    for (let i = 1; i <= qrSession.totalRows; i++) {
+      rowStats[i] = 0;
+    }
+
+    enrichedSubmissions.forEach(s => {
+      rowStats[s.rowNumber] += 1;
+    });
+
+    res.json({
+      submissions: enrichedSubmissions,
+      rowStats,
+      totalRows: qrSession.totalRows
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  const submissions = await QRSubmission.find({ qrSessionId })
-    .populate("studentId", "collegeId");
-
-  /* Row-wise counts (initialize with 0) */
-  const rowStats = {};
-  for (let i = 1; i <= qrSession.totalRows; i++) {
-    rowStats[i] = 0;
-  }
-
-  submissions.forEach(s => {
-    rowStats[s.rowNumber] += 1;
-  });
-
-  res.json({
-    submissions,
-    rowStats,
-    totalRows: qrSession.totalRows
-  });
 };
+
 
 
 export const saveQRAttendance = async (req, res) => {
