@@ -72,6 +72,7 @@ export const submitQR = async (req, res) => {
      ACCEPT SUBMISSION
      ============================= */
 
+  try {
   await QRSubmission.create({
     qrSessionId,
     attendanceSlotId,
@@ -80,7 +81,19 @@ export const submitQR = async (req, res) => {
     qrToken: token
   });
 
-  res.json({ message: "Attendance submitted" });
+  return res.json({ message: "Attendance submitted" });
+
+} catch (err) {
+  // 🔥 Duplicate submission (same student, same session)
+  if (err.code === 11000) {
+    return res.status(400).json({
+      message: "Attendance already submitted for this session"
+    });
+  }
+
+  throw err; // unexpected error
+}
+
 };
 
 
