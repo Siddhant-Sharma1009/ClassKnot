@@ -10,9 +10,9 @@ export default function QRPreview() {
   const [saving, setSaving] = useState(false);
 
   /**
-   * attendanceMap structure:
+   * attendanceMap
    * {
-   *   studentKey: "present" | "absent"
+   *   userId: "present" | "absent"
    * }
    */
   const [attendanceMap, setAttendanceMap] = useState({});
@@ -35,32 +35,24 @@ export default function QRPreview() {
 
         // Default everyone to PRESENT
         const initialAttendance = {};
-        (preview.submissions || []).forEach((s, index) => {
-          const key =
-            s.student?._id ||
-            s.student ||
-            s.collegeId ||
-            `${s.rowNumber}-${index}`;
-
-          initialAttendance[key] = "present";
+        preview.submissions.forEach((s) => {
+          // studentId = userId (confirmed)
+          initialAttendance[s.studentId] = "present";
         });
-
         setAttendanceMap(initialAttendance);
       })
       .catch(() => alert("Failed to load preview"));
   }, [qrSessionId]);
 
   /* =============================
-     SAVE → DASHBOARD
+     SAVE
      ============================= */
   const save = async () => {
     try {
       setSaving(true);
-
       await api.post(`/qr/save/${qrSessionId}`, {
         attendance: attendanceMap,
       });
-
       alert("Attendance saved successfully");
       navigate("/teacher");
     } catch {
@@ -137,18 +129,18 @@ export default function QRPreview() {
   }
 
   /* =============================
-     GROUP SUBMISSIONS ROW-WISE
+     GROUP SUBMISSIONS BY ROW
      ============================= */
   const submissionsByRow = {};
-
-  (data.submissions || []).forEach((s) => {
-    const row = s.rowNumber ?? "Unknown";
-    if (!submissionsByRow[row]) submissionsByRow[row] = [];
-    submissionsByRow[row].push(s);
+  data.submissions.forEach((s) => {
+    if (!submissionsByRow[s.rowNumber]) {
+      submissionsByRow[s.rowNumber] = [];
+    }
+    submissionsByRow[s.rowNumber].push(s);
   });
 
   const sortedRows = Object.keys(submissionsByRow)
-    .map((r) => (isNaN(r) ? r : Number(r)))
+    .map(Number)
     .sort((a, b) => a - b);
 
   /* =============================
@@ -161,7 +153,6 @@ export default function QRPreview() {
           QR Attendance Preview
         </h2>
 
-        {/* ROW-WISE ATTENDANCE */}
         <h3 className="text-lg font-semibold text-gray-700 mb-4">
           Row-wise Attendance
         </h3>
@@ -174,51 +165,40 @@ export default function QRPreview() {
               </p>
 
               <div className="space-y-2">
-                {submissionsByRow[row].map((s, index) => {
-                  const studentKey =
-                    s.studentId?._id ||
-                    s.studentId ||
-                    s.collegeId ||
-                    `${row}-${index}`;
-              
-                  const collegeId =
-                    s.studentId?.collegeId ||
-                    s.collegeId ||
-                    s.studentCollegeId ||
-                    "UNKNOWN";
-
-                  const status =
-                    attendanceMap[studentKey] || "present";
+                {submissionsByRow[row].map((s) => {
+                  const userId = s.studentId; // confirmed
+                  const collegeId = s.student?.collegeId; // ✅ CORRECT
+                  const status = attendanceMap[userId];
 
                   return (
                     <div
-                      key={studentKey}
+                      key={userId}
                       className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
                     >
                       {/* College ID */}
                       <span className="text-sm font-semibold text-gray-800">
-                        {collegeId}
+                        {collegeId || "UNKNOWN"}
                       </span>
 
-                      {/* Toggle Switch */}
+                      {/* Toggle */}
                       <button
                         onClick={() =>
                           setAttendanceMap((prev) => ({
                             ...prev,
-                            [studentKey]:
+                            [userId]:
                               status === "present"
                                 ? "absent"
                                 : "present",
                           }))
                         }
-                        className={`relative w-24 h-9 rounded-full transition-colors duration-300 ${
+                        className={`relative w-24 h-9 rounded-full transition-colors ${
                           status === "present"
                             ? "bg-green-500"
                             : "bg-red-500"
                         }`}
                       >
                         <span
-                          className={`absolute top-1 left-1 w-7 h-7 bg-white rounded-full transition-transform duration-300 ${
+                          className={`absolute top-1 left-1 w-7 h-7 bg-white rounded-full transition-transform ${
                             status === "present"
                               ? "translate-x-14"
                               : "translate-x-0"
@@ -238,57 +218,8 @@ export default function QRPreview() {
           ))}
         </div>
 
-        {/* AI COUNTING */}
-        <div className="mt-6 p-4 border rounded-lg bg-slate-50">
-          <h3 className="text-lg font-semibold text-gray-700 mb-3">
-            🤖 AI Attendance (Real-Time)
-          </h3>
-
-          <input
-            type="text"
-            placeholder="Enter camera URL"
-            value={aiUrl}
-            onChange={(e) => setAiUrl(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          <button
-            onClick={startAiCounting}
-            disabled={aiLoading}
-            className={`mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-              aiLoading
-                ? "bg-gray-300"
-                : "bg-indigo-600 hover:bg-indigo-700"
-            }`}
-          >
-            {aiLoading ? "Starting AI..." : "Start AI Counting"}
-          </button>
-
-          {aiRunning && (
-            <p className="mt-3 text-sm font-semibold text-green-700">
-              🟢 AI is running
-            </p>
-          )}
-
-          {aiCount !== null && (
-            <p className="mt-2 text-sm font-semibold text-gray-800">
-              AI Counted Students:
-              <span className="ml-2 text-indigo-700">{aiCount}</span>
-            </p>
-          )}
-        </div>
-
         {/* ACTIONS */}
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            onClick={() =>
-              navigate(`/teacher/attendance/${data.attendanceSlotId}`)
-            }
-            className="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold"
-          >
-            ✏️ Edit Manually
-          </button>
-
+        <div className="mt-6 flex gap-3">
           <button
             onClick={retake}
             className="px-4 py-2 rounded-lg bg-yellow-100 text-sm font-semibold"
