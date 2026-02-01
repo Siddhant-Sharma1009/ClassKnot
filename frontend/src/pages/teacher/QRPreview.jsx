@@ -17,7 +17,7 @@ export default function QRPreview() {
    */
   const [attendanceMap, setAttendanceMap] = useState({});
 
-  // ✅ AI STATES (UNCHANGED)
+  // 🤖 AI STATES (UNCHANGED)
   const [aiUrl, setAiUrl] = useState("");
   const [aiCount, setAiCount] = useState(null);
   const [aiRunning, setAiRunning] = useState(false);
@@ -33,13 +33,11 @@ export default function QRPreview() {
         const preview = res.data;
         setData(preview);
 
-        // Default everyone to PRESENT
+        // Default all students to PRESENT
         const initialAttendance = {};
         preview.submissions.forEach((s) => {
-          // studentId = userId (confirmed by DB)
           initialAttendance[s.studentId] = "present";
         });
-
         setAttendanceMap(initialAttendance);
       })
       .catch(() => alert("Failed to load preview"));
@@ -51,11 +49,9 @@ export default function QRPreview() {
   const save = async () => {
     try {
       setSaving(true);
-
       await api.post(`/qr/save/${qrSessionId}`, {
         attendance: attendanceMap,
       });
-
       alert("Attendance saved successfully");
       navigate("/teacher");
     } catch {
@@ -116,7 +112,6 @@ export default function QRPreview() {
 
   useEffect(() => {
     if (!aiRunning) return;
-
     const interval = setInterval(fetchAiCount, 3000);
     return () => clearInterval(interval);
   }, [aiRunning]);
@@ -147,15 +142,38 @@ export default function QRPreview() {
     .map(Number)
     .sort((a, b) => a - b);
 
+  const totalSubmissions = data.submissions.length;
+
   /* =============================
      UI
      ============================= */
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6 flex justify-center">
       <div className="w-full max-w-[650px] bg-white border rounded-xl shadow-sm p-6">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
           QR Attendance Preview
         </h2>
+
+        {/* ROW-WISE COUNTS */}
+        <h3 className="text-lg font-semibold text-gray-700 mb-3">
+          Row-wise Submissions (Count)
+        </h3>
+
+        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700 mb-4">
+          {sortedRows.map((row) => (
+            <li key={row}>
+              Row <b>{row}</b>:{" "}
+              <span className="font-semibold text-indigo-600">
+                {submissionsByRow[row].length}
+              </span>
+            </li>
+          ))}
+
+          <li className="pt-2 mt-2 border-t font-semibold text-gray-900">
+            Total submissions:{" "}
+            <span className="text-indigo-700">{totalSubmissions}</span>
+          </li>
+        </ul>
 
         {/* ROW-WISE ATTENDANCE */}
         <h3 className="text-lg font-semibold text-gray-700 mb-4">
@@ -171,8 +189,8 @@ export default function QRPreview() {
 
               <div className="space-y-2">
                 {submissionsByRow[row].map((s) => {
-                  const userId = s.studentId; // userId
-                  const collegeId = s.student?.collegeId; // ✅ CORRECT SOURCE
+                  const userId = s.studentId;
+                  const collegeId = s.student?.collegeId;
                   const status = attendanceMap[userId];
 
                   return (
@@ -185,7 +203,7 @@ export default function QRPreview() {
                         {collegeId || "UNKNOWN"}
                       </span>
 
-                      {/* Toggle Switch */}
+                      {/* Toggle */}
                       <button
                         onClick={() =>
                           setAttendanceMap((prev) => ({
@@ -223,7 +241,7 @@ export default function QRPreview() {
           ))}
         </div>
 
-        {/* AI COUNTING UI (UNCHANGED) */}
+        {/* AI COUNTING (UNCHANGED) */}
         <div className="mt-6 p-4 border rounded-lg bg-slate-50">
           <h3 className="text-lg font-semibold text-gray-700 mb-3">
             🤖 AI Attendance (Real-Time)
