@@ -17,7 +17,7 @@ export default function QRPreview() {
    */
   const [attendanceMap, setAttendanceMap] = useState({});
 
-  // AI states
+  // ✅ AI STATES (UNCHANGED)
   const [aiUrl, setAiUrl] = useState("");
   const [aiCount, setAiCount] = useState(null);
   const [aiRunning, setAiRunning] = useState(false);
@@ -36,23 +36,26 @@ export default function QRPreview() {
         // Default everyone to PRESENT
         const initialAttendance = {};
         preview.submissions.forEach((s) => {
-          // studentId = userId (confirmed)
+          // studentId = userId (confirmed by DB)
           initialAttendance[s.studentId] = "present";
         });
+
         setAttendanceMap(initialAttendance);
       })
       .catch(() => alert("Failed to load preview"));
   }, [qrSessionId]);
 
   /* =============================
-     SAVE
+     SAVE → DASHBOARD
      ============================= */
   const save = async () => {
     try {
       setSaving(true);
+
       await api.post(`/qr/save/${qrSessionId}`, {
         attendance: attendanceMap,
       });
+
       alert("Attendance saved successfully");
       navigate("/teacher");
     } catch {
@@ -75,7 +78,7 @@ export default function QRPreview() {
   };
 
   /* =============================
-     AI COUNTING
+     AI COUNTING (UNCHANGED)
      ============================= */
   const startAiCounting = async () => {
     if (!aiUrl) {
@@ -113,6 +116,7 @@ export default function QRPreview() {
 
   useEffect(() => {
     if (!aiRunning) return;
+
     const interval = setInterval(fetchAiCount, 3000);
     return () => clearInterval(interval);
   }, [aiRunning]);
@@ -129,7 +133,7 @@ export default function QRPreview() {
   }
 
   /* =============================
-     GROUP SUBMISSIONS BY ROW
+     GROUP SUBMISSIONS ROW-WISE
      ============================= */
   const submissionsByRow = {};
   data.submissions.forEach((s) => {
@@ -153,6 +157,7 @@ export default function QRPreview() {
           QR Attendance Preview
         </h2>
 
+        {/* ROW-WISE ATTENDANCE */}
         <h3 className="text-lg font-semibold text-gray-700 mb-4">
           Row-wise Attendance
         </h3>
@@ -166,8 +171,8 @@ export default function QRPreview() {
 
               <div className="space-y-2">
                 {submissionsByRow[row].map((s) => {
-                  const userId = s.studentId; // confirmed
-                  const collegeId = s.student?.collegeId; // ✅ CORRECT
+                  const userId = s.studentId; // userId
+                  const collegeId = s.student?.collegeId; // ✅ CORRECT SOURCE
                   const status = attendanceMap[userId];
 
                   return (
@@ -180,7 +185,7 @@ export default function QRPreview() {
                         {collegeId || "UNKNOWN"}
                       </span>
 
-                      {/* Toggle */}
+                      {/* Toggle Switch */}
                       <button
                         onClick={() =>
                           setAttendanceMap((prev) => ({
@@ -218,8 +223,48 @@ export default function QRPreview() {
           ))}
         </div>
 
+        {/* AI COUNTING UI (UNCHANGED) */}
+        <div className="mt-6 p-4 border rounded-lg bg-slate-50">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">
+            🤖 AI Attendance (Real-Time)
+          </h3>
+
+          <input
+            type="text"
+            placeholder="Enter camera URL"
+            value={aiUrl}
+            onChange={(e) => setAiUrl(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg text-sm"
+          />
+
+          <button
+            onClick={startAiCounting}
+            disabled={aiLoading}
+            className={`mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white ${
+              aiLoading
+                ? "bg-gray-300"
+                : "bg-indigo-600 hover:bg-indigo-700"
+            }`}
+          >
+            {aiLoading ? "Starting AI..." : "Start AI Counting"}
+          </button>
+
+          {aiRunning && (
+            <p className="mt-3 text-sm font-semibold text-green-700">
+              🟢 AI is running
+            </p>
+          )}
+
+          {aiCount !== null && (
+            <p className="mt-2 text-sm font-semibold text-gray-800">
+              AI Counted Students:
+              <span className="ml-2 text-indigo-700">{aiCount}</span>
+            </p>
+          )}
+        </div>
+
         {/* ACTIONS */}
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-wrap gap-3">
           <button
             onClick={retake}
             className="px-4 py-2 rounded-lg bg-yellow-100 text-sm font-semibold"
