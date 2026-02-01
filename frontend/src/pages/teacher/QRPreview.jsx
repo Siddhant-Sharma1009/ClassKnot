@@ -164,58 +164,69 @@ export default function QRPreview() {
               </p>
 
               <div className="space-y-2">
-                {submissionsByRow[row].map((s) => {
-                  const studentId = s.studentId?._id;
-                  const collegeId = s.studentId?.collegeId;
+                {sortedRows.map((row) => (
+  <div key={row} className="border rounded-lg p-4 bg-slate-50">
+    <p className="font-semibold text-gray-800 mb-3">
+      Row {row}
+    </p>
 
-                  return (
-                    <div
-                      key={studentId}
-                      className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
-                    >
-                      <span className="text-sm font-medium text-gray-800">
-                        {collegeId}
-                      </span>
+    <div className="space-y-2">
+      {submissionsByRow[row].map((s, index) => {
+        const studentKey =
+          s.studentId?._id || s.studentId || `${row}-${index}`;
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() =>
-                            setAttendanceMap((prev) => ({
-                              ...prev,
-                              [studentId]: "present",
-                            }))
-                          }
-                          className={`px-3 py-1 text-xs rounded-md font-semibold ${
-                            attendanceMap[studentId] === "present"
-                              ? "bg-green-600 text-white"
-                              : "bg-green-100 text-green-700"
-                          }`}
-                        >
-                          Present
-                        </button>
+        // 🔥 FIX: Resolve College ID safely
+        const collegeId =
+          s.studentId?.collegeId ||
+          s.collegeId ||
+          s.studentCollegeId ||
+          "UNKNOWN";
 
-                        <button
-                          onClick={() =>
-                            setAttendanceMap((prev) => ({
-                              ...prev,
-                              [studentId]: "absent",
-                            }))
-                          }
-                          className={`px-3 py-1 text-xs rounded-md font-semibold ${
-                            attendanceMap[studentId] === "absent"
-                              ? "bg-red-600 text-white"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          Absent
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        const status = attendanceMap[studentKey] || "present";
+
+        return (
+          <div
+            key={studentKey}
+            className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
+          >
+            {/* College ID */}
+            <span className="text-sm font-semibold text-gray-800">
+              {collegeId}
+            </span>
+
+            {/* Toggle Switch */}
+            <button
+              onClick={() =>
+                setAttendanceMap((prev) => ({
+                  ...prev,
+                  [studentKey]:
+                    status === "present" ? "absent" : "present",
+                }))
+              }
+              className={`relative w-20 h-8 rounded-full transition-colors duration-300 ${
+                status === "present"
+                  ? "bg-green-500"
+                  : "bg-red-500"
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 ${
+                  status === "present"
+                    ? "translate-x-12"
+                    : "translate-x-0"
+                }`}
+              />
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                {status === "present" ? "PRESENT" : "ABSENT"}
+              </span>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+))}
+
         </div>
 
         {/* AI COUNTING */}
