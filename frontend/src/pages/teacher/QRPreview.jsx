@@ -9,7 +9,12 @@ export default function QRPreview() {
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Attendance state: { studentId: "present" | "absent" }
+  /**
+   * attendanceMap structure:
+   * {
+   *   studentKey: "present" | "absent"
+   * }
+   */
   const [attendanceMap, setAttendanceMap] = useState({});
 
   // AI states
@@ -25,15 +30,21 @@ export default function QRPreview() {
     api
       .get(`/qr/preview/${qrSessionId}`)
       .then((res) => {
-        setData(res.data);
+        const preview = res.data;
+        setData(preview);
 
         // Default everyone to PRESENT
         const initialAttendance = {};
-        (res.data.submissions || []).forEach((s) => {
-          if (s.studentId?._id) {
-            initialAttendance[s.studentId._id] = "present";
-          }
+        (preview.submissions || []).forEach((s, index) => {
+          const key =
+            s.studentId?._id ||
+            s.studentId ||
+            s.collegeId ||
+            `${s.rowNumber}-${index}`;
+
+          initialAttendance[key] = "present";
         });
+
         setAttendanceMap(initialAttendance);
       })
       .catch(() => alert("Failed to load preview"));
@@ -46,7 +57,6 @@ export default function QRPreview() {
     try {
       setSaving(true);
 
-      // OPTIONAL: send attendanceMap later if backend supports it
       await api.post(`/qr/save/${qrSessionId}`, {
         attendance: attendanceMap,
       });
@@ -132,13 +142,13 @@ export default function QRPreview() {
   const submissionsByRow = {};
 
   (data.submissions || []).forEach((s) => {
-    const row = s.rowNumber;
+    const row = s.rowNumber ?? "Unknown";
     if (!submissionsByRow[row]) submissionsByRow[row] = [];
     submissionsByRow[row].push(s);
   });
 
   const sortedRows = Object.keys(submissionsByRow)
-    .map(Number)
+    .map((r) => (isNaN(r) ? r : Number(r)))
     .sort((a, b) => a - b);
 
   /* =============================
@@ -164,69 +174,69 @@ export default function QRPreview() {
               </p>
 
               <div className="space-y-2">
-                {sortedRows.map((row) => (
-  <div key={row} className="border rounded-lg p-4 bg-slate-50">
-    <p className="font-semibold text-gray-800 mb-3">
-      Row {row}
-    </p>
+                {submissionsByRow[row].map((s, index) => {
+                  const studentKey =
+                    s.studentId?._id ||
+                    s.studentId ||
+                    s.collegeId ||
+                    `${row}-${index}`;
 
-    <div className="space-y-2">
-      {submissionsByRow[row].map((s, index) => {
-        const studentKey =
-          s.studentId?._id || s.studentId || `${row}-${index}`;
+                  // 🔥 COLLEGE ID FIX (robust)
+                  const collegeId =
+                    s.studentId?.collegeId ||
+                    s.collegeId ||
+                    s.studentCollegeId ||
+                    "UNKNOWN";
 
-        // 🔥 FIX: Resolve College ID safely
-        const collegeId =
-          s.studentId?.collegeId ||
-          s.collegeId ||
-          s.studentCollegeId ||
-          "UNKNOWN";
+                  const status =
+                    attendanceMap[studentKey] || "present";
 
-        const status = attendanceMap[studentKey] || "present";
+                  return (
+                    <div
+                      key={studentKey}
+                      className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
+                    >
+                      {/* College ID */}
+                      <span className="text-sm font-semibold text-gray-800">
+                        {collegeId}
+                      </span>
 
-        return (
-          <div
-            key={studentKey}
-            className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
-          >
-            {/* College ID */}
-            <span className="text-sm font-semibold text-gray-800">
-              {collegeId}
-            </span>
-
-            {/* Toggle Switch */}
-            <button
-              onClick={() =>
-                setAttendanceMap((prev) => ({
-                  ...prev,
-                  [studentKey]:
-                    status === "present" ? "absent" : "present",
-                }))
-              }
-              className={`relative w-20 h-8 rounded-full transition-colors duration-300 ${
-                status === "present"
-                  ? "bg-green-500"
-                  : "bg-red-500"
-              }`}
-            >
-              <span
-                className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform duration-300 ${
-                  status === "present"
-                    ? "translate-x-12"
-                    : "translate-x-0"
-                }`}
-              />
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-                {status === "present" ? "PRESENT" : "ABSENT"}
-              </span>
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-))}
-
+                      {/* Toggle Switch */}
+                      <button
+                        onClick={() =>
+                          setAttendanceMap((prev) => ({
+                            ...prev,
+                            [studentKey]:
+                              status === "present"
+                                ? "absent"
+                                : "present",
+                          }))
+                        }
+                        className={`relative w-24 h-9 rounded-full transition-colors duration-300 ${
+                          status === "present"
+                            ? "bg-green-500"
+                            : "bg-red-500"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-1 left-1 w-7 h-7 bg-white rounded-full transition-transform duration-300 ${
+                            status === "present"
+                              ? "translate-x-14"
+                              : "translate-x-0"
+                          }`}
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                          {status === "present"
+                            ? "PRESENT"
+                            : "ABSENT"}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* AI COUNTING */}
