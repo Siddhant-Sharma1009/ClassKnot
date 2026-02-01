@@ -9,6 +9,9 @@ export default function QRPreview() {
   const [data, setData] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Attendance state: { studentId: "present" | "absent" }
+  const [attendanceMap, setAttendanceMap] = useState({});
+
   // AI states
   const [aiUrl, setAiUrl] = useState("");
   const [aiCount, setAiCount] = useState(null);
@@ -21,7 +24,18 @@ export default function QRPreview() {
   useEffect(() => {
     api
       .get(`/qr/preview/${qrSessionId}`)
-      .then((res) => setData(res.data))
+      .then((res) => {
+        setData(res.data);
+
+        // Default everyone to PRESENT
+        const initialAttendance = {};
+        (res.data.submissions || []).forEach((s) => {
+          if (s.studentId?._id) {
+            initialAttendance[s.studentId._id] = "present";
+          }
+        });
+        setAttendanceMap(initialAttendance);
+      })
       .catch(() => alert("Failed to load preview"));
   }, [qrSessionId]);
 
@@ -31,7 +45,12 @@ export default function QRPreview() {
   const save = async () => {
     try {
       setSaving(true);
-      await api.post(`/qr/save/${qrSessionId}`);
+
+      // OPTIONAL: send attendanceMap later if backend supports it
+      await api.post(`/qr/save/${qrSessionId}`, {
+        attendance: attendanceMap,
+      });
+
       alert("Attendance saved successfully");
       navigate("/teacher");
     } catch {
@@ -54,7 +73,7 @@ export default function QRPreview() {
   };
 
   /* =============================
-     START AI COUNTING
+     AI COUNTING
      ============================= */
   const startAiCounting = async () => {
     if (!aiUrl) {
@@ -73,9 +92,6 @@ export default function QRPreview() {
     }
   };
 
-  /* =============================
-     FETCH LIVE AI COUNT
-     ============================= */
   const fetchAiCount = async () => {
     try {
       const res = await api.get("/api/ai/count");
@@ -93,12 +109,8 @@ export default function QRPreview() {
     }
   };
 
-  /* =============================
-     AUTO POLLING (AI)
-     ============================= */
   useEffect(() => {
     if (!aiRunning) return;
-
     const interval = setInterval(fetchAiCount, 3000);
     return () => clearInterval(interval);
   }, [aiRunning]);
@@ -115,79 +127,93 @@ export default function QRPreview() {
   }
 
   /* =============================
-     TOTAL SUBMISSIONS
-     ============================= */
-  const totalSubmissions = Object.values(data.rowStats || {}).reduce(
-    (sum, count) => sum + count,
-    0
-  );
-
-  /* =============================
      GROUP SUBMISSIONS ROW-WISE
      ============================= */
   const submissionsByRow = {};
 
   (data.submissions || []).forEach((s) => {
     const row = s.rowNumber;
-    if (!submissionsByRow[row]) {
-      submissionsByRow[row] = [];
-    }
-    submissionsByRow[row].push(s.studentId?.collegeId);
+    if (!submissionsByRow[row]) submissionsByRow[row] = [];
+    submissionsByRow[row].push(s);
   });
 
   const sortedRows = Object.keys(submissionsByRow)
     .map(Number)
     .sort((a, b) => a - b);
 
+  /* =============================
+     UI
+     ============================= */
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6 flex justify-center">
-      <div className="w-full max-w-[600px] bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+      <div className="w-full max-w-[650px] bg-white border rounded-xl shadow-sm p-6">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
           QR Attendance Preview
         </h2>
 
-        {/* ROW-WISE COUNTS */}
-        <h3 className="text-lg font-semibold text-gray-700 mb-3">
-          Row-wise Submissions (Count)
+        {/* ROW-WISE ATTENDANCE */}
+        <h3 className="text-lg font-semibold text-gray-700 mb-4">
+          Row-wise Attendance
         </h3>
 
-        <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
-          {Object.entries(data.rowStats).map(([row, count]) => (
-            <li key={row}>
-              Row <b>{row}</b>:{" "}
-              <span className="text-indigo-600 font-semibold">
-                {count}
-              </span>{" "}
-              submissions
-            </li>
-          ))}
-
-          <li className="pt-2 mt-2 border-t font-semibold text-gray-900">
-            Total submissions:{" "}
-            <span className="text-indigo-700">{totalSubmissions}</span>
-          </li>
-        </ul>
-
-        {/* ROW-WISE STUDENT LIST */}
-        <h3 className="text-lg font-semibold text-gray-700 mt-6 mb-3">
-          Row-wise Student Submissions (College ID)
-        </h3>
-
-        <div className="space-y-3 text-sm">
+        <div className="space-y-4">
           {sortedRows.map((row) => (
-            <div
-              key={row}
-              className="border rounded-lg p-3 bg-slate-50"
-            >
-              <p className="font-semibold text-gray-800 mb-1">
+            <div key={row} className="border rounded-lg p-4 bg-slate-50">
+              <p className="font-semibold text-gray-800 mb-3">
                 Row {row}
               </p>
 
-              <ul className="list-disc pl-5 space-y-0.5 text-gray-700">
-                {submissionsByRow[row].map((cid, idx) => (
-                  <li key={idx}>{cid}</li>
-                ))}
-              </ul>
+              <div className="space-y-2">
+                {submissionsByRow[row].map((s) => {
+                  const studentId = s.studentId?._id;
+                  const collegeId = s.studentId?.collegeId;
+
+                  return (
+                    <div
+                      key={studentId}
+                      className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-gray-800">
+                        {collegeId}
+                      </span>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() =>
+                            setAttendanceMap((prev) => ({
+                              ...prev,
+                              [studentId]: "present",
+                            }))
+                          }
+                          className={`px-3 py-1 text-xs rounded-md font-semibold ${
+                            attendanceMap[studentId] === "present"
+                              ? "bg-green-600 text-white"
+                              : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          Present
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setAttendanceMap((prev) => ({
+                              ...prev,
+                              [studentId]: "absent",
+                            }))
+                          }
+                          className={`px-3 py-1 text-xs rounded-md font-semibold ${
+                            attendanceMap[studentId] === "absent"
+                              ? "bg-red-600 text-white"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          Absent
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
