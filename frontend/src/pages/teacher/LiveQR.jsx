@@ -12,40 +12,43 @@ export default function LiveQR() {
   const [qrData, setQrData] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
-  const expiryRef = useRef(null);
-  const serverOffsetRef = useRef(0);
-  const tickRef = useRef(null);
+  const expiryRef = useRef(0);
+  const countdownRef = useRef(null);
   const rowRef = useRef(null);
 
+  /* Fetch QR ONCE per cycle */
   const fetchQR = async () => {
     const res = await api.get(`/qr/generate/${qrSessionId}`);
     setQrData(res.data);
-
-    // 🔥 calculate server-client time offset ONCE
-    serverOffsetRef.current = res.data.serverNow - Date.now();
     expiryRef.current = res.data.expiresAt;
+
+    // initialize countdown immediately (smooth start)
+    const diff = expiryRef.current - Date.now();
+    setSecondsLeft(Math.max(0, Math.floor(diff / 1000)));
   };
 
+  /* Smooth 1-second countdown */
   useEffect(() => {
     fetchQR();
 
-    tickRef.current = setInterval(() => {
-      if (!expiryRef.current) return;
+    countdownRef.current = setInterval(() => {
+      const diff = expiryRef.current - Date.now();
+      const remaining = Math.max(0, Math.floor(diff / 1000));
 
-      const serverTime = Date.now() + serverOffsetRef.current;
-      const diffMs = expiryRef.current - serverTime;
-      const remaining = Math.max(0, Math.ceil(diffMs / 1000));
-
-      setSecondsLeft(remaining);
+      setSecondsLeft(prev => {
+        // avoid unnecessary re-renders
+        return prev !== remaining ? remaining : prev;
+      });
 
       if (remaining === 0) {
-        fetchQR();
+        fetchQR(); // QR changes calmly AFTER countdown ends
       }
-    }, 250);
+    }, 1000);
 
-    return () => clearInterval(tickRef.current);
+    return () => clearInterval(countdownRef.current);
   }, [qrSessionId]);
 
+  /* Row change (independent, slow, stable) */
   useEffect(() => {
     rowRef.current = setInterval(async () => {
       const res = await api.post(`/qr/next-row/${qrSessionId}`);
@@ -88,7 +91,7 @@ export default function LiveQR() {
         </div>
 
         <p className="mt-5 text-xs text-gray-400">
-          Countdown synced with server clock
+          Smooth countdown · Server-controlled expiry
         </p>
       </div>
     </div>
