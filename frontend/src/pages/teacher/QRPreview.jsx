@@ -37,8 +37,8 @@ export default function QRPreview() {
         const initialAttendance = {};
         (preview.submissions || []).forEach((s, index) => {
           const key =
-            s.studentId?._id ||
-            s.studentId ||
+            s.student?._id ||
+            s.student ||
             s.collegeId ||
             `${s.rowNumber}-${index}`;
 
@@ -180,8 +180,7 @@ export default function QRPreview() {
                     s.studentId ||
                     s.collegeId ||
                     `${row}-${index}`;
-
-                  // 🔥 COLLEGE ID FIX (robust)
+              
                   const collegeId =
                     s.studentId?.collegeId ||
                     s.collegeId ||
