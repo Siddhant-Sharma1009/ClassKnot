@@ -110,7 +110,7 @@ export const getQRPreview = async (req, res) => {
   }
 
   const submissions = await QRSubmission.find({ qrSessionId })
-    .populate("studentId", "collegeId name");
+    .populate("studentId", "collegeId");
 
   /* Row-wise counts (initialize with 0) */
   const rowStats = {};
