@@ -33,9 +33,9 @@ const qrSubmissionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-/* Prevent duplicate submission in same row */
+/* Prevent duplicate submission in a session*/
 qrSubmissionSchema.index(
-  { qrSessionId: 1, studentId: 1, rowNumber: 1 },
+  { qrSessionId: 1, studentId: 1},
   { unique: true }
 );
 
