@@ -42,15 +42,12 @@ export const submitQR = async (req, res) => {
     qrSessionId,
     attendanceSlotId,
     row,
-    token,
-    expiresAt
+    token
   } = req.body;
 
-  const session = await QRSession.findById(qrSessionId);
+  const studentId = req.user.userId;
 
-  /* =============================
-     HARD BLOCK CONDITIONS
-     ============================= */
+  const session = await QRSession.findById(qrSessionId);
 
   if (!session || !session.isActive) {
     return res.status(400).json({ message: "QR session inactive" });
@@ -68,33 +65,40 @@ export const submitQR = async (req, res) => {
     return res.status(400).json({ message: "QR expired" });
   }
 
-  /* =============================
-     ACCEPT SUBMISSION
-     ============================= */
-
-  try {
-  await QRSubmission.create({
+  // 🔥 EARLY BLOCK (UX-friendly)
+  const alreadySubmitted = await QRSubmission.findOne({
     qrSessionId,
-    attendanceSlotId,
-    studentId: req.user.userId,
-    rowNumber: row,
-    qrToken: token
+    studentId
   });
 
-  return res.json({ message: "Attendance submitted" });
-
-} catch (err) {
-  // 🔥 Duplicate submission (same student, same session)
-  if (err.code === 11000) {
+  if (alreadySubmitted) {
     return res.status(400).json({
       message: "Attendance already submitted for this session"
     });
   }
 
-  throw err; // unexpected error
-}
+  try {
+    await QRSubmission.create({
+      qrSessionId,
+      attendanceSlotId,
+      studentId,
+      rowNumber: row,
+      qrToken: token
+    });
 
+    return res.json({ message: "Attendance submitted" });
+
+  } catch (err) {
+    // 🔥 FINAL SAFETY NET (race-condition proof)
+    if (err.code === 11000) {
+      return res.status(400).json({
+        message: "Attendance already submitted for this session"
+      });
+    }
+    throw err;
+  }
 };
+
 
 
 export const getQRPreview = async (req, res) => {
