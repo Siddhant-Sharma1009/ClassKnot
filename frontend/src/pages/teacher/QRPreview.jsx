@@ -12,7 +12,7 @@ export default function QRPreview() {
   /**
    * attendanceMap
    * {
-   *   userId: "present" | "absent"
+   *   studentId: "present" | "absent"
    * }
    */
   const [attendanceMap, setAttendanceMap] = useState({});
@@ -36,7 +36,9 @@ export default function QRPreview() {
         // Default all students to PRESENT
         const initialAttendance = {};
         preview.submissions.forEach((s) => {
-          initialAttendance[s.studentId] = "present";
+          if (s.studentId && s.studentId._id) {
+            initialAttendance[s.studentId._id] = "present";
+          }
         });
         setAttendanceMap(initialAttendance);
       })
@@ -168,7 +170,6 @@ export default function QRPreview() {
               </span>
             </li>
           ))}
-
           <li className="pt-2 mt-2 border-t font-semibold text-gray-900">
             Total submissions:{" "}
             <span className="text-indigo-700">{totalSubmissions}</span>
@@ -189,28 +190,29 @@ export default function QRPreview() {
 
               <div className="space-y-2">
                 {submissionsByRow[row].map((s) => {
-                  const userId = s.studentId;
+                  const studentObj = s.studentId;
+                  const studentKey = studentObj?._id;
                   const collegeId =
-                    typeof s.studentId === "object" && s.studentId !== null s.studentId.collegeId : "UNKNOWN";
+                    studentObj && studentObj.collegeId
+                      ? studentObj.collegeId
+                      : "UNKNOWN";
 
-                  const status = attendanceMap[userId];
+                  const status = attendanceMap[studentKey];
 
                   return (
                     <div
-                      key={userId}
+                      key={studentKey}
                       className="flex items-center justify-between bg-white border rounded-md px-3 py-2"
                     >
-                      {/* College ID */}
                       <span className="text-sm font-semibold text-gray-800">
-                        {collegeId || "UNKNOWN"}
+                        {collegeId}
                       </span>
 
-                      {/* Toggle */}
                       <button
                         onClick={() =>
                           setAttendanceMap((prev) => ({
                             ...prev,
-                            [userId]:
+                            [studentKey]:
                               status === "present"
                                 ? "absent"
                                 : "present",
@@ -241,46 +243,6 @@ export default function QRPreview() {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* AI COUNTING (UNCHANGED) */}
-        <div className="mt-6 p-4 border rounded-lg bg-slate-50">
-          <h3 className="text-lg font-semibold text-gray-700 mb-3">
-            🤖 AI Attendance (Real-Time)
-          </h3>
-
-          <input
-            type="text"
-            placeholder="Enter camera URL"
-            value={aiUrl}
-            onChange={(e) => setAiUrl(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          <button
-            onClick={startAiCounting}
-            disabled={aiLoading}
-            className={`mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-              aiLoading
-                ? "bg-gray-300"
-                : "bg-indigo-600 hover:bg-indigo-700"
-            }`}
-          >
-            {aiLoading ? "Starting AI..." : "Start AI Counting"}
-          </button>
-
-          {aiRunning && (
-            <p className="mt-3 text-sm font-semibold text-green-700">
-              🟢 AI is running
-            </p>
-          )}
-
-          {aiCount !== null && (
-            <p className="mt-2 text-sm font-semibold text-gray-800">
-              AI Counted Students:
-              <span className="ml-2 text-indigo-700">{aiCount}</span>
-            </p>
-          )}
         </div>
 
         {/* ACTIONS */}
