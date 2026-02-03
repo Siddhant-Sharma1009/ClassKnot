@@ -165,7 +165,7 @@ export const saveQRAttendance = async (req, res) => {
   try {
     const { qrSessionId } = req.params;
 
-    //  Find QR session
+    // 1️ Find QR session
     const qrSession = await QRSession.findById(qrSessionId);
     if (!qrSession) {
       return res.status(404).json({ message: "QR session not found" });
@@ -173,16 +173,15 @@ export const saveQRAttendance = async (req, res) => {
 
     const attendanceSlotId = qrSession.attendanceSlotId;
 
-    // Get QR submissions (PRESENT students)
-    const qrSubmissions = await QRSubmission.find({
-      qrSessionId
-    }).select("studentId");
+    // 2️ Get QR submissions (students who scanned)
+    const qrSubmissions = await QRSubmission.find({ qrSessionId })
+      .select("studentId");
 
-    const presentStudentIds = qrSubmissions.map(s =>
-      s.studentId.toString()
+    const presentStudentIds = new Set(
+      qrSubmissions.map(s => s.studentId.toString())
     );
 
-    // 3️ Get ALL students of this class
+    // 3️ Get all students of this class
     const students = await Student.find({
       branch: qrSession.branch,
       semester: qrSession.semester,
@@ -190,22 +189,27 @@ export const saveQRAttendance = async (req, res) => {
       group: qrSession.group
     }).select("_id");
 
-    // 4️ Create attendance records
-    const records = students.map(student => ({
-      attendanceSlotId,
-      studentId: student._id,
-      status: presentStudentIds.includes(student._id.toString())
-        ? "P"
-        : "A",
-      method: "QR"
-    }));
+    // 4️ UPDATE attendance records 
+    for (const student of students) {
+      const isPresent = presentStudentIds.has(student._id.toString());
 
-    // 5️ Insert (ignore duplicates safely)
-    await AttendanceRecord.insertMany(records, {
-      ordered: false
-    });
+      await AttendanceRecord.findOneAndUpdate(
+        {
+          attendanceSlotId,
+          studentId: student._id
+        },
+        {
+          status: isPresent ? "P" : "A",
+          method: "QR"
+        },
+        {
+          upsert: true,     // create if missing
+          new: true
+        }
+      );
+    }
 
-    // 6️ Mark QR session closed
+    // 5️ Close QR session
     qrSession.isActive = false;
     await qrSession.save();
 
@@ -216,6 +220,7 @@ export const saveQRAttendance = async (req, res) => {
     res.status(500).json({ message: "Failed to save attendance" });
   }
 };
+
 
 
 
