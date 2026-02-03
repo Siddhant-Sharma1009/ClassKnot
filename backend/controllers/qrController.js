@@ -162,51 +162,38 @@ export const saveQRAttendance = async (req, res) => {
   try {
     const { qrSessionId } = req.params;
 
-    // 1️⃣ Find QR session
     const qrSession = await QRSession.findById(qrSessionId);
     if (!qrSession) {
       return res.status(404).json({ message: "QR session not found" });
     }
 
-    // 2️⃣ Resolve AttendanceSlot → ClassSession
-    const slot = await AttendanceSlot.findById(
-      qrSession.attendanceSlotId
-    );
-    if (!slot) {
-      return res.status(404).json({ message: "Attendance slot not found" });
-    }
+    const attendanceSlotId = qrSession.attendanceSlotId;
 
-    const classSession = await ClassSession.findById(
-      slot.classId
-    );
-    if (!classSession) {
-      return res.status(404).json({ message: "Class session not found" });
-    }
-
-    // 3️⃣ Get QR submissions (Student._id)
+    // 1️⃣ Get QR submissions (USER IDs)
     const qrSubmissions = await QRSubmission.find({ qrSessionId })
       .select("studentId");
 
-    const presentStudentIds = new Set(
+    const presentUserIds = new Set(
       qrSubmissions.map(s => s.studentId.toString())
     );
 
-    // 4️⃣ Get students using CLASS metadata (CORRECT SOURCE)
+    // 2️⃣ Get all USERS of the class via Student collection
     const students = await Student.find({
-      branch: classSession.branch,
-      semester: classSession.semester,
-      section: classSession.section,
-      group: classSession.group
-    }).select("_id");
+      branch: qrSession.branch,
+      semester: qrSession.semester,
+      section: qrSession.section,
+      group: qrSession.group
+    }).select("userId");
 
-    // 5️⃣ Update attendance records
+    // 3️⃣ Update attendance
     for (const student of students) {
-      const isPresent = presentStudentIds.has(student._id.toString());
+      const userId = student.userId.toString();
+      const isPresent = presentUserIds.has(userId);
 
       await AttendanceRecord.findOneAndUpdate(
         {
-          attendanceSlotId: qrSession.attendanceSlotId,
-          studentId: student._id
+          attendanceSlotId,
+          studentId: student.userId   // ✅ USER ID
         },
         {
           status: isPresent ? "P" : "A",
@@ -216,7 +203,6 @@ export const saveQRAttendance = async (req, res) => {
       );
     }
 
-    // 6️⃣ Close QR session
     qrSession.isActive = false;
     await qrSession.save();
 
@@ -227,6 +213,7 @@ export const saveQRAttendance = async (req, res) => {
     res.status(500).json({ message: "Failed to save attendance" });
   }
 };
+
 
 
 
