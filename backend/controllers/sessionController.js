@@ -12,12 +12,13 @@ export const createSession = async (req, res) => {
       branch,
       semester,
       subjectCode,
+      subjectName,           // ✅ already coming from frontend
       section = null,
       group = null
     } = req.body;
 
     /* ✅ VALIDATION */
-    if (!branch || !semester || !subjectCode) {
+    if (!branch || !semester || !subjectCode || !subjectName) {
       return res.status(400).json({
         message: "Branch, Semester and Subject are mandatory"
       });
@@ -32,13 +33,12 @@ export const createSession = async (req, res) => {
       branch: normalizedBranch,
       semester: normalizedSemester,
       subjectCode,
+      subjectName,          // ✅ THIS WAS MISSING
       section,
       group,
       qrToken: crypto.randomBytes(20).toString("hex"),
       isActive: true
     });
-
-    /* ❌ DO NOT CREATE AttendanceRecord HERE ANYMORE */
 
     res.status(201).json({
       message: "Class created successfully",
@@ -52,7 +52,6 @@ export const createSession = async (req, res) => {
     });
   }
 };
-
 
 
 
