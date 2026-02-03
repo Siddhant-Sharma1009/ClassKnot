@@ -143,30 +143,12 @@ export const getQRPreview = async (req, res) => {
       return res.status(404).json({ message: "QR session not found" });
     }
 
-    // 1️ Get submissions (studentId = userId)
-    const submissions = await QRSubmission.find({ qrSessionId }).lean();
-
-    // 2️ Collect userIds
-    const userIds = submissions.map(s => s.studentId);
-
-    // 3️ Find students by userId
-    const students = await Student.find({
-      userId: { $in: userIds }
-    })
-      .select("userId collegeId name")
-      .lean();
-
-    // 4️ Map userId → student
-    const studentMap = {};
-    students.forEach(st => {
-      studentMap[st.userId.toString()] = st;
-    });
-
-    // 5️ Attach student info to submissions
-    const enrichedSubmissions = submissions.map(s => ({
-      ...s,
-      student: studentMap[s.studentId.toString()] || null
-    }));
+    //  POPULATE studentId → Student → collegeId
+    const submissions = await QRSubmission.find({ qrSessionId })
+      .populate({
+        path: "studentId",
+        select: "collegeId name"
+      });
 
     /* Row-wise counts */
     const rowStats = {};
@@ -174,18 +156,19 @@ export const getQRPreview = async (req, res) => {
       rowStats[i] = 0;
     }
 
-    enrichedSubmissions.forEach(s => {
+    submissions.forEach(s => {
       rowStats[s.rowNumber] += 1;
     });
 
     res.json({
-      submissions: enrichedSubmissions,
+      submissions,
       rowStats,
       totalRows: qrSession.totalRows
     });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("QR preview error:", err);
+    res.status(500).json({ message: "Failed to load preview" });
   }
 };
 
