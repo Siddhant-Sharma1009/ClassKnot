@@ -197,6 +197,7 @@ export const saveQRAttendance = async (req, res) => {
   try {
     const { qrSessionId } = req.params;
 
+    // 1️⃣ Get QR session
     const qrSession = await QRSession.findById(qrSessionId);
     if (!qrSession) {
       return res.status(404).json({ message: "QR session not found" });
@@ -204,40 +205,33 @@ export const saveQRAttendance = async (req, res) => {
 
     const attendanceSlotId = qrSession.attendanceSlotId;
 
-    // 1️⃣ Get QR submissions (USER IDs)
+    // 2️⃣ Students who scanned QR (PRESENT)
     const qrSubmissions = await QRSubmission.find({ qrSessionId })
       .select("studentId");
 
-    const presentUserIds = new Set(
+    const presentStudentIds = new Set(
       qrSubmissions.map(s => s.studentId.toString())
     );
 
-    // 2️⃣ Get all USERS of the class via Student collection
-    const students = await Student.find({
-      branch: qrSession.branch,
-      semester: qrSession.semester,
-      section: qrSession.section,
-      group: qrSession.group
-    }).select("userId");
+    // 3️⃣ Get ALL attendance records for this slot
+    const records = await AttendanceRecord.find({
+      attendanceSlotId
+    });
 
-    // 3️⃣ Update attendance
-    for (const student of students) {
-      const userId = student.userId.toString();
-      const isPresent = presentUserIds.has(userId);
-
-      await AttendanceRecord.findOneAndUpdate(
-        {
-          attendanceSlotId,
-          studentId: student.userId   // ✅ USER ID
-        },
-        {
-          status: isPresent ? "P" : "A",
-          method: "QR"
-        },
-        { upsert: true }
+    // 4️⃣ Update existing records
+    for (const record of records) {
+      const isPresent = presentStudentIds.has(
+        record.studentId.toString()
       );
+
+      if (isPresent) {
+        record.status = "P";
+        record.method = "QR";
+        await record.save();
+      }
     }
 
+    // 5️⃣ Close QR session
     qrSession.isActive = false;
     await qrSession.save();
 
@@ -248,6 +242,7 @@ export const saveQRAttendance = async (req, res) => {
     res.status(500).json({ message: "Failed to save attendance" });
   }
 };
+
 
 
 
