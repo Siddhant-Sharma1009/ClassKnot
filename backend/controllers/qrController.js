@@ -7,6 +7,7 @@ import crypto from "crypto";
 import Student from "../models/Student.js";
 import ClassSession from "../models/ClassSession.js";
 
+
 export const startQRSession = async (req, res) => {
   const { attendanceSlotId, totalRows } = req.body;
 
@@ -43,6 +44,7 @@ export const nextRow = async (req, res) => {
 
 
 
+
 export const submitQR = async (req, res) => {
   const {
     qrSessionId,
@@ -51,47 +53,80 @@ export const submitQR = async (req, res) => {
     token
   } = req.body;
 
-  // ✅ USE USER ID (AS YOU WANT)
-  const userId = req.user.userId;
+  try {
+    /* 🔑 RESOLVE USER → STUDENT (FINAL & CORRECT) */
+    const student = await Student.findOne({
+      userId: req.user.userId
+    });
 
-  const session = await QRSession.findById(qrSessionId);
+    if (!student) {
+      return res.status(404).json({
+        message: "Student profile not found"
+      });
+    }
 
-  if (!session || !session.isActive) {
-    return res.status(400).json({ message: "QR session inactive" });
-  }
+    const studentId = student._id; // ✅ ATTENDANCE ID
 
-  if (session.currentRow !== row) {
-    return res.status(400).json({ message: "QR row expired" });
-  }
+    /* =============================
+       VALIDATE QR SESSION
+       ============================= */
+    const session = await QRSession.findById(qrSessionId);
 
-  if (session.currentToken !== token) {
-    return res.status(400).json({ message: "QR token invalid" });
-  }
+    if (!session || !session.isActive) {
+      return res.status(400).json({ message: "QR session inactive" });
+    }
 
-  if (Date.now() > session.tokenExpiresAt) {
-    return res.status(400).json({ message: "QR expired" });
-  }
+    if (session.currentRow !== row) {
+      return res.status(400).json({ message: "QR row expired" });
+    }
 
-  const alreadySubmitted = await QRSubmission.findOne({
-    qrSessionId,
-    studentId: userId
-  });
+    if (session.currentToken !== token) {
+      return res.status(400).json({ message: "QR token invalid" });
+    }
 
-  if (alreadySubmitted) {
-    return res.status(400).json({
-      message: "Attendance already submitted for this session"
+    if (Date.now() > session.tokenExpiresAt) {
+      return res.status(400).json({ message: "QR expired" });
+    }
+
+    /* =============================
+       PREVENT DUPLICATE SUBMISSION
+       ============================= */
+    const alreadySubmitted = await QRSubmission.findOne({
+      qrSessionId,
+      studentId
+    });
+
+    if (alreadySubmitted) {
+      return res.status(400).json({
+        message: "Attendance already submitted for this session"
+      });
+    }
+
+    /* =============================
+       SAVE QR SUBMISSION
+       ============================= */
+    await QRSubmission.create({
+      qrSessionId,
+      attendanceSlotId,
+      studentId,           // ✅ Student._id
+      rowNumber: row,
+      qrToken: token
+    });
+
+    return res.json({ message: "Attendance submitted" });
+
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(400).json({
+        message: "Attendance already submitted for this session"
+      });
+    }
+
+    console.error("submitQR error:", err);
+    return res.status(500).json({
+      message: "Failed to submit attendance"
     });
   }
-
-  await QRSubmission.create({
-    qrSessionId,
-    attendanceSlotId,
-    studentId: userId,   // ✅ USER ID
-    rowNumber: row,
-    qrToken: token
-  });
-
-  return res.json({ message: "Attendance submitted" });
 };
 
 
