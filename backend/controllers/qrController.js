@@ -130,10 +130,6 @@ export const submitQR = async (req, res) => {
 };
 
 
-
-
-
-
 export const getQRPreview = async (req, res) => {
   try {
     const { qrSessionId } = req.params;
@@ -143,25 +139,45 @@ export const getQRPreview = async (req, res) => {
       return res.status(404).json({ message: "QR session not found" });
     }
 
-    //  POPULATE studentId → Student → collegeId
-    const submissions = await QRSubmission.find({ qrSessionId })
-      .populate({
-        path: "studentId",
-        select: "collegeId name"
-      });
+    // 1️⃣ Get raw submissions
+    const submissions = await QRSubmission.find({ qrSessionId }).lean();
 
-    /* Row-wise counts */
+    // 2️⃣ Collect studentIds
+    const studentIds = submissions.map(s => s.studentId);
+
+    // 3️⃣ Fetch students explicitly
+    const students = await Student.find({
+      _id: { $in: studentIds }
+    })
+      .select("_id collegeId name")
+      .lean();
+
+    // 4️⃣ Build lookup map
+    const studentMap = {};
+    students.forEach(st => {
+      studentMap[st._id.toString()] = st;
+    });
+
+    // 5️⃣ Attach collegeId manually
+    const enrichedSubmissions = submissions.map(s => ({
+      ...s,
+      studentId: studentMap[s.studentId.toString()] || null
+    }));
+
+    // 6️⃣ Row stats
     const rowStats = {};
     for (let i = 1; i <= qrSession.totalRows; i++) {
       rowStats[i] = 0;
     }
 
-    submissions.forEach(s => {
-      rowStats[s.rowNumber] += 1;
+    enrichedSubmissions.forEach(s => {
+      if (rowStats[s.rowNumber] !== undefined) {
+        rowStats[s.rowNumber] += 1;
+      }
     });
 
     res.json({
-      submissions,
+      submissions: enrichedSubmissions,
       rowStats,
       totalRows: qrSession.totalRows
     });
@@ -171,6 +187,7 @@ export const getQRPreview = async (req, res) => {
     res.status(500).json({ message: "Failed to load preview" });
   }
 };
+
 
 
 
