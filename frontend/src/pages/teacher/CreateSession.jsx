@@ -19,12 +19,15 @@ export default function CreateSession() {
   const [section, setSection] = useState("");
   const [group, setGroup] = useState("");
   const [subjects, setSubjects] = useState([]);
+
   const [subjectCode, setSubjectCode] = useState("");
+  const [subjectName, setSubjectName] = useState(""); // ✅ ADDED
 
   useEffect(() => {
     if (!branch || !semester) {
       setSubjects([]);
       setSubjectCode("");
+      setSubjectName("");
       return;
     }
 
@@ -44,6 +47,7 @@ export default function CreateSession() {
         branch,
         semester: Number(semester),
         subjectCode,
+        subjectName,            // ✅ SENT TO BACKEND
         section: section || null,
         group: group || null
       });
@@ -98,6 +102,7 @@ export default function CreateSession() {
               setSection("");
               setGroup("");
               setSubjectCode("");
+              setSubjectName("");
             }}
             className="
               w-full px-4 py-3
@@ -160,7 +165,15 @@ export default function CreateSession() {
           {branch && semester && (
             <select
               value={subjectCode}
-              onChange={e => setSubjectCode(e.target.value)}
+              onChange={e => {
+                const selectedCode = e.target.value;
+                const selectedSubject = subjects.find(
+                  s => s.code === selectedCode
+                );
+
+                setSubjectCode(selectedCode);
+                setSubjectName(selectedSubject?.name || "");
+              }}
               className="
                 w-full px-4 py-3
                 border-2 border-gray-200
