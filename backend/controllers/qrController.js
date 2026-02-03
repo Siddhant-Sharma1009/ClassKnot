@@ -66,7 +66,7 @@ export const submitQR = async (req, res) => {
     return res.status(400).json({ message: "QR expired" });
   }
 
-  // 🔥 EARLY BLOCK (UX-friendly)
+
   const alreadySubmitted = await QRSubmission.findOne({
     qrSessionId,
     studentId
@@ -90,7 +90,7 @@ export const submitQR = async (req, res) => {
     return res.json({ message: "Attendance submitted" });
 
   } catch (err) {
-    // 🔥 FINAL SAFETY NET (race-condition proof)
+    // (race-condition proof)
     if (err.code === 11000) {
       return res.status(400).json({
         message: "Attendance already submitted for this session"
@@ -113,26 +113,26 @@ export const getQRPreview = async (req, res) => {
       return res.status(404).json({ message: "QR session not found" });
     }
 
-    // 1️⃣ Get submissions (studentId = userId)
+    // 1️ Get submissions (studentId = userId)
     const submissions = await QRSubmission.find({ qrSessionId }).lean();
 
-    // 2️⃣ Collect userIds
+    // 2️ Collect userIds
     const userIds = submissions.map(s => s.studentId);
 
-    // 3️⃣ Find students by userId
+    // 3️ Find students by userId
     const students = await Student.find({
       userId: { $in: userIds }
     })
       .select("userId collegeId name")
       .lean();
 
-    // 4️⃣ Map userId → student
+    // 4️ Map userId → student
     const studentMap = {};
     students.forEach(st => {
       studentMap[st.userId.toString()] = st;
     });
 
-    // 5️⃣ Attach student info to submissions
+    // 5️ Attach student info to submissions
     const enrichedSubmissions = submissions.map(s => ({
       ...s,
       student: studentMap[s.studentId.toString()] || null
@@ -161,42 +161,62 @@ export const getQRPreview = async (req, res) => {
 
 
 
-export const saveQRAttendance = async (req, res) => {
-  const { qrSessionId } = req.params;
+export const saveQrAttendance = async (req, res) => {
+  try {
+    const { qrSessionId } = req.params;
 
-  const qrSession = await QRSession.findById(qrSessionId);
-  if (!qrSession) {
-    return res.status(404).json({ message: "QR session not found" });
-  }
+    //  Find QR session
+    const qrSession = await QRSession.findById(qrSessionId);
+    if (!qrSession) {
+      return res.status(404).json({ message: "QR session not found" });
+    }
 
-  const submissions = await QRSubmission.find({ qrSessionId });
+    const attendanceSlotId = qrSession.attendanceSlotId;
 
-  const presentStudentIds = [
-    ...new Set(submissions.map(s => s.studentId.toString()))
-  ];
+    // Get QR submissions (PRESENT students)
+    const qrSubmissions = await QRSubmission.find({
+      qrSessionId
+    }).select("studentId");
 
-  /* Mark present students */
-  if (presentStudentIds.length > 0) {
-    await AttendanceRecord.updateMany(
-      {
-        attendanceSlotId: qrSession.attendanceSlotId,
-        studentId: { $in: presentStudentIds }
-      },
-      { status: "P", method: "QR" }
+    const presentStudentIds = qrSubmissions.map(s =>
+      s.studentId.toString()
     );
+
+    // 3️ Get ALL students of this class
+    const students = await Student.find({
+      branch: qrSession.branch,
+      semester: qrSession.semester,
+      section: qrSession.section,
+      group: qrSession.group
+    }).select("_id");
+
+    // 4️ Create attendance records
+    const records = students.map(student => ({
+      attendanceSlotId,
+      studentId: student._id,
+      status: presentStudentIds.includes(student._id.toString())
+        ? "P"
+        : "A",
+      method: "QR"
+    }));
+
+    // 5️ Insert (ignore duplicates safely)
+    await AttendanceRecord.insertMany(records, {
+      ordered: false
+    });
+
+    // 6️ Mark QR session closed
+    qrSession.isActive = false;
+    await qrSession.save();
+
+    res.json({ message: "Attendance saved successfully" });
+
+  } catch (err) {
+    console.error("QR save error:", err);
+    res.status(500).json({ message: "Failed to save attendance" });
   }
-
-  /* Mark remaining as Absent */
-  await AttendanceRecord.updateMany(
-    {
-      attendanceSlotId: qrSession.attendanceSlotId,
-      studentId: { $nin: presentStudentIds }
-    },
-    { status: "A" }
-  );
-
-  res.json({ message: "Attendance saved successfully" });
 };
+
 
 
 export const retakeQR = async (req, res) => {
@@ -232,7 +252,7 @@ export const generateQR = async (req, res) => {
   const token = crypto.randomBytes(16).toString("hex");
   const expiresAt = Date.now() + 5000;
 
-  // 🔥 STORE CURRENT VALID TOKEN ON SERVER
+  // STORE CURRENT VALID TOKEN ON SERVER
   session.currentToken = token;
   session.tokenExpiresAt = expiresAt;
   await session.save();
@@ -243,7 +263,7 @@ export const generateQR = async (req, res) => {
   row: session.currentRow,
   token,
   expiresAt,
-  serverNow: Date.now() // 🔥 ADD THIS
+  serverNow: Date.now() 
 });
 
 };
