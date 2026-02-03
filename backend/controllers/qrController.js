@@ -173,15 +173,24 @@ export const saveQRAttendance = async (req, res) => {
 
     const attendanceSlotId = qrSession.attendanceSlotId;
 
-    // 2️ Get QR submissions (students who scanned)
+    // 2️ Get QR submissions (these contain USER IDs)
     const qrSubmissions = await QRSubmission.find({ qrSessionId })
       .select("studentId");
 
-    const presentStudentIds = new Set(
-      qrSubmissions.map(s => s.studentId.toString())
+    const submittedUserIds = qrSubmissions.map(s =>
+      s.studentId.toString()
     );
 
-    // 3️ Get all students of this class
+    // 3️ Resolve USER IDs → STUDENT IDs
+    const submittedStudents = await Student.find({
+      userId: { $in: submittedUserIds }
+    }).select("_id userId");
+
+    const presentStudentIds = new Set(
+      submittedStudents.map(s => s._id.toString())
+    );
+
+    // 4️ Get all students of the class
     const students = await Student.find({
       branch: qrSession.branch,
       semester: qrSession.semester,
@@ -189,7 +198,7 @@ export const saveQRAttendance = async (req, res) => {
       group: qrSession.group
     }).select("_id");
 
-    // 4️ UPDATE attendance records 
+    // 5️ Update attendance records
     for (const student of students) {
       const isPresent = presentStudentIds.has(student._id.toString());
 
@@ -203,13 +212,12 @@ export const saveQRAttendance = async (req, res) => {
           method: "QR"
         },
         {
-          upsert: true,     // create if missing
-          new: true
+          upsert: true
         }
       );
     }
 
-    // 5️ Close QR session
+    // 6️ Close QR session
     qrSession.isActive = false;
     await qrSession.save();
 
