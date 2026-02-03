@@ -8,6 +8,10 @@ const teacherSchema = new mongoose.Schema(
       required: true,
       unique: true
     },
+    collegeId: {
+      type: String,
+      required: true
+    },
     name: {
       type: String,
       required: true
@@ -16,13 +20,8 @@ const teacherSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-    subjects: {
-      type: [String],
-      default: []
-    }
   },
   {
-    timestamps: true,
     autoIndex: false   // 🔥 CRITICAL
   }
 );
