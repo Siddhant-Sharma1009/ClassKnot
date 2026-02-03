@@ -161,7 +161,7 @@ export const getQRPreview = async (req, res) => {
 
 
 
-export const saveQrAttendance = async (req, res) => {
+export const saveQRAttendance = async (req, res) => {
   try {
     const { qrSessionId } = req.params;
 
