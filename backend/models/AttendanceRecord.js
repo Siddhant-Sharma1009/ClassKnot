@@ -8,10 +8,10 @@ const attendanceRecordSchema = new mongoose.Schema(
       required: true
     },
 
-    // ✅ USER ID (NOT STUDENT ID)
+    // ✅ STUDENT is the attendance entity
     studentId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Student",
       required: true
     },
 
@@ -30,11 +30,11 @@ const attendanceRecordSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+/* ✅ ONE RECORD PER STUDENT PER SLOT */
 attendanceRecordSchema.index(
   { attendanceSlotId: 1, studentId: 1 },
   { unique: true }
 );
-
 
 const AttendanceRecord =
   mongoose.models.AttendanceRecord ||
