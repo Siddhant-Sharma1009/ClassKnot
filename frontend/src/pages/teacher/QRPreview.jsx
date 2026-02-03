@@ -190,7 +190,9 @@ export default function QRPreview() {
               <div className="space-y-2">
                 {submissionsByRow[row].map((s) => {
                   const userId = s.studentId;
-                  const collegeId = s.student?.collegeId;
+                  const collegeId =
+                    typeof s.studentId === "object" && s.studentId !== null s.studentId.collegeId : "UNKNOWN";
+
                   const status = attendanceMap[userId];
 
                   return (
