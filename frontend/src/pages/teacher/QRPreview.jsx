@@ -17,7 +17,9 @@ export default function QRPreview() {
    */
   const [attendanceMap, setAttendanceMap] = useState({});
 
-  // 🤖 AI STATES (UNCHANGED)
+  /* =============================
+     🤖 AI STATES (DO NOT TOUCH)
+     ============================= */
   const [aiUrl, setAiUrl] = useState("");
   const [aiCount, setAiCount] = useState(null);
   const [aiRunning, setAiRunning] = useState(false);
@@ -33,7 +35,7 @@ export default function QRPreview() {
         const preview = res.data;
         setData(preview);
 
-        // Default all students to PRESENT
+        // Default all scanned students to PRESENT
         const initialAttendance = {};
         preview.submissions.forEach((s) => {
           if (s.studentId && s.studentId._id) {
@@ -52,7 +54,7 @@ export default function QRPreview() {
     try {
       setSaving(true);
       await api.post(`/qr/save/${qrSessionId}`, {
-        attendance: attendanceMap,
+        attendance: attendanceMap
       });
       alert("Attendance saved successfully");
       navigate("/teacher");
@@ -76,7 +78,7 @@ export default function QRPreview() {
   };
 
   /* =============================
-     AI COUNTING (UNCHANGED)
+     🤖 AI COUNTING (DO NOT TOUCH)
      ============================= */
   const startAiCounting = async () => {
     if (!aiUrl) {
@@ -190,11 +192,11 @@ export default function QRPreview() {
 
               <div className="space-y-2">
                 {submissionsByRow[row].map((s) => {
-                  const studentObj = s.studentId;
-                  const studentKey = studentObj?._id;
+                  const student = s.studentId;
+                  const studentKey = student?._id;
                   const collegeId =
-                    studentObj && studentObj.collegeId
-                      ? studentObj.collegeId
+                    student && student.collegeId
+                      ? student.collegeId
                       : "UNKNOWN";
 
                   const status = attendanceMap[studentKey];
@@ -215,7 +217,7 @@ export default function QRPreview() {
                             [studentKey]:
                               status === "present"
                                 ? "absent"
-                                : "present",
+                                : "present"
                           }))
                         }
                         className={`relative w-24 h-9 rounded-full transition-colors ${
@@ -243,6 +245,46 @@ export default function QRPreview() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* 🤖 AI COUNTING (UNCHANGED UI + LOGIC) */}
+        <div className="mt-6 p-4 border rounded-lg bg-slate-50">
+          <h3 className="text-lg font-semibold text-gray-700 mb-3">
+            🤖 AI Attendance (Real-Time)
+          </h3>
+
+          <input
+            type="text"
+            placeholder="Enter camera URL"
+            value={aiUrl}
+            onChange={(e) => setAiUrl(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg text-sm"
+          />
+
+          <button
+            onClick={startAiCounting}
+            disabled={aiLoading}
+            className={`mt-3 px-4 py-2 rounded-lg text-sm font-semibold text-white ${
+              aiLoading
+                ? "bg-gray-300"
+                : "bg-indigo-600 hover:bg-indigo-700"
+            }`}
+          >
+            {aiLoading ? "Starting AI..." : "Start AI Counting"}
+          </button>
+
+          {aiRunning && (
+            <p className="mt-3 text-sm font-semibold text-green-700">
+              🟢 AI is running
+            </p>
+          )}
+
+          {aiCount !== null && (
+            <p className="mt-2 text-sm font-semibold text-gray-800">
+              AI Counted Students:
+              <span className="ml-2 text-indigo-700">{aiCount}</span>
+            </p>
+          )}
         </div>
 
         {/* ACTIONS */}
