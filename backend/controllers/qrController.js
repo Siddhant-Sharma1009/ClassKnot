@@ -41,6 +41,8 @@ export const nextRow = async (req, res) => {
 
 
 
+
+
 export const submitQR = async (req, res) => {
   const {
     qrSessionId,
@@ -49,74 +51,47 @@ export const submitQR = async (req, res) => {
     token
   } = req.body;
 
-  try {
-    /* 1️⃣ Resolve USER → STUDENT */
-    const student = await Student.findOne({
-      userId: req.user.userId
-    });
+  // ✅ USE USER ID (AS YOU WANT)
+  const userId = req.user.userId;
 
-    if (!student) {
-      return res.status(404).json({
-        message: "Student profile not found"
-      });
-    }
+  const session = await QRSession.findById(qrSessionId);
 
-    const studentId = student._id; // ✅ CORRECT ID
+  if (!session || !session.isActive) {
+    return res.status(400).json({ message: "QR session inactive" });
+  }
 
-    /* 2️⃣ Validate QR session */
-    const session = await QRSession.findById(qrSessionId);
+  if (session.currentRow !== row) {
+    return res.status(400).json({ message: "QR row expired" });
+  }
 
-    if (!session || !session.isActive) {
-      return res.status(400).json({ message: "QR session inactive" });
-    }
+  if (session.currentToken !== token) {
+    return res.status(400).json({ message: "QR token invalid" });
+  }
 
-    if (session.currentRow !== row) {
-      return res.status(400).json({ message: "QR row expired" });
-    }
+  if (Date.now() > session.tokenExpiresAt) {
+    return res.status(400).json({ message: "QR expired" });
+  }
 
-    if (session.currentToken !== token) {
-      return res.status(400).json({ message: "QR token invalid" });
-    }
+  const alreadySubmitted = await QRSubmission.findOne({
+    qrSessionId,
+    studentId: userId
+  });
 
-    if (Date.now() > session.tokenExpiresAt) {
-      return res.status(400).json({ message: "QR expired" });
-    }
-
-    /* 3️⃣ Prevent duplicate submission */
-    const alreadySubmitted = await QRSubmission.findOne({
-      qrSessionId,
-      studentId
-    });
-
-    if (alreadySubmitted) {
-      return res.status(400).json({
-        message: "Attendance already submitted for this session"
-      });
-    }
-
-    /* 4️⃣ Save QR submission (Student._id) */
-    await QRSubmission.create({
-      qrSessionId,
-      attendanceSlotId,
-      studentId,           // ✅ NOW CORRECT
-      rowNumber: row,
-      qrToken: token
-    });
-
-    return res.json({ message: "Attendance submitted" });
-
-  } catch (err) {
-    if (err.code === 11000) {
-      return res.status(400).json({
-        message: "Attendance already submitted for this session"
-      });
-    }
-
-    console.error("submitQR error:", err);
-    return res.status(500).json({
-      message: "Failed to submit attendance"
+  if (alreadySubmitted) {
+    return res.status(400).json({
+      message: "Attendance already submitted for this session"
     });
   }
+
+  await QRSubmission.create({
+    qrSessionId,
+    attendanceSlotId,
+    studentId: userId,   // ✅ USER ID
+    rowNumber: row,
+    qrToken: token
+  });
+
+  return res.json({ message: "Attendance submitted" });
 };
 
 
