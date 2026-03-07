@@ -1,28 +1,31 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import "../../styles/teacherExperience.css";
 
 export default function StudentProfile() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const navigate = useNavigate();
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    api.get("/student/me")
-      .then(res => setProfile(res.data))
-      .finally(() => setLoading(false));
+    api
+      .get("/student/me")
+      .then((res) => setProfile(res.data))
+      .catch(() => setProfile({}))
+      .finally(() => setLoadingProfile(false));
   }, []);
 
   const handleChangePassword = async () => {
-    setMessage("");
     setError("");
+    setSuccess("");
 
     if (!oldPassword || !newPassword || !confirmPassword) {
       return setError("All fields are required");
@@ -32,101 +35,96 @@ export default function StudentProfile() {
       return setError("New passwords do not match");
     }
 
+    setLoading(true);
     try {
       const res = await api.put("/student/change-password", {
         oldPassword,
         newPassword
       });
 
-      setMessage(res.data.message || "Password updated successfully");
+      setSuccess(res.data.message || "Password updated successfully");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update password");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  const logout = () => {
+    localStorage.clear();
+    navigate("/");
+  };
+
+  if (loadingProfile) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        Loading profile...
+      <div className="teacher-shell">
+        <div className="teacher-wrap" style={{ maxWidth: 760 }}>
+          <div className="teacher-panel">
+            <p className="teacher-sub">Loading profile...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow p-6 space-y-6">
+    <div className="teacher-shell">
+      <div className="teacher-wrap" style={{ maxWidth: 760 }}>
+        <div className="teacher-panel">
+          <h1 className="teacher-title">Student Profile</h1>
+          <p className="teacher-sub">Only password change is allowed from this section.</p>
 
-        {/* HEADER */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-gray-800">
-            👤 Student Profile
-          </h1>
+          <div className="teacher-panel" style={{ marginTop: 14 }}>
+            <p className="text-sm"><span className="font-semibold">Name:</span> {profile?.name || "-"}</p>
+            <p className="text-sm mt-1"><span className="font-semibold">College ID:</span> {profile?.collegeId || "-"}</p>
+            <p className="text-sm mt-1"><span className="font-semibold">Branch:</span> {profile?.branch || "-"}</p>
+            <p className="text-sm mt-1"><span className="font-semibold">Semester:</span> {profile?.semester ?? "-"}</p>
+          </div>
 
-          <button
-            onClick={() => navigate(-1)}
-            className="text-sm text-indigo-600 hover:underline"
-          >
-            ← Back
-          </button>
+          <div className="teacher-panel" style={{ marginTop: 14 }}>
+            <h2 className="text-xl font-semibold">Change Password</h2>
+
+            <div className="teacher-grid" style={{ marginTop: 12 }}>
+              <input
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                placeholder="Old password"
+                className="input-field"
+              />
+
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password"
+                className="input-field"
+              />
+
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="input-field"
+              />
+            </div>
+
+            {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+            {success && <p className="text-sm text-green-600 mt-3">{success}</p>}
+
+            <div className="teacher-actions">
+              <button onClick={handleChangePassword} disabled={loading} className="btn-primary">
+                {loading ? "Updating..." : "Update Password"}
+              </button>
+              <button onClick={() => navigate("/student")} className="btn-ghost">Back</button>
+              <button onClick={logout} className="btn-ghost">Logout</button>
+            </div>
+          </div>
         </div>
-
-        {/* PROFILE INFO */}
-        <div className="space-y-1 text-sm">
-          <p><span className="font-medium">Name:</span> {profile.name}</p>
-          <p><span className="font-medium">Branch:</span> {profile.branch}</p>
-          <p><span className="font-medium">Semester:</span> {profile.semester}</p>
-          {profile.section && (
-            <p><span className="font-medium">Section:</span> {profile.section}</p>
-          )}
-          {profile.group && (
-            <p><span className="font-medium">Group:</span> {profile.group}</p>
-          )}
-        </div>
-
-        {/* CHANGE PASSWORD */}
-        <div className="border-t pt-4 space-y-3">
-          <h2 className="text-lg font-medium text-gray-800">
-            Change Password
-          </h2>
-
-          <input
-            type="password"
-            placeholder="Old Password"
-            value={oldPassword}
-            onChange={e => setOldPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          <input
-            type="password"
-            placeholder="New Password"
-            value={newPassword}
-            onChange={e => setNewPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          <input
-            type="password"
-            placeholder="Confirm New Password"
-            value={confirmPassword}
-            onChange={e => setConfirmPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {message && <p className="text-sm text-green-600">{message}</p>}
-
-          <button
-            onClick={handleChangePassword}
-            className="w-full mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            Update Password
-          </button>
-        </div>
-
       </div>
     </div>
   );

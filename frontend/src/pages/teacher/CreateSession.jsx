@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import "../../styles/teacherExperience.css";
 
 const BRANCH_SECTIONS = {
   CSE: ["A", "B"],
@@ -21,7 +22,7 @@ export default function CreateSession() {
   const [subjects, setSubjects] = useState([]);
 
   const [subjectCode, setSubjectCode] = useState("");
-  const [subjectName, setSubjectName] = useState(""); // ✅ ADDED
+  const [subjectName, setSubjectName] = useState("");
 
   useEffect(() => {
     if (!branch || !semester) {
@@ -33,7 +34,7 @@ export default function CreateSession() {
 
     api
       .get(`/subjects?branch=${branch}&semester=${semester}`)
-      .then(res => setSubjects(res.data))
+      .then((res) => setSubjects(res.data))
       .catch(() => setSubjects([]));
   }, [branch, semester]);
 
@@ -47,7 +48,7 @@ export default function CreateSession() {
         branch,
         semester: Number(semester),
         subjectCode,
-        subjectName,            // ✅ SENT TO BACKEND
+        subjectName,
         section: section || null,
         group: group || null
       });
@@ -61,153 +62,81 @@ export default function CreateSession() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
-      <div className="
-        w-full max-w-[420px]
-        bg-white
-        border border-gray-200
-        rounded-xl
-        shadow-sm
-        p-6
-      ">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-          Create New Class
-        </h2>
+    <div className="teacher-shell">
+      <div className="teacher-wrap" style={{ maxWidth: 680 }}>
+        <div className="teacher-panel">
+          <h1 className="teacher-title">Create Class Session</h1>
+          <p className="teacher-sub">Choose semester, branch, and subject details.</p>
 
-        <div className="flex flex-col gap-4">
-          {/* Semester */}
-          <select
-            value={semester}
-            onChange={e => setSemester(e.target.value)}
-            className="
-              w-full px-4 py-3
-              border-2 border-gray-200
-              rounded-lg text-sm
-              outline-none transition
-              focus:border-indigo-500
-              focus:ring-4 focus:ring-indigo-500/10
-            "
-          >
-            <option value="">Select Semester</option>
-            {[1,2,3,4,5,6,7,8].map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          {/* Branch */}
-          <select
-            value={branch}
-            onChange={e => {
-              setBranch(e.target.value);
-              setSection("");
-              setGroup("");
-              setSubjectCode("");
-              setSubjectName("");
-            }}
-            className="
-              w-full px-4 py-3
-              border-2 border-gray-200
-              rounded-lg text-sm
-              outline-none transition
-              focus:border-indigo-500
-              focus:ring-4 focus:ring-indigo-500/10
-            "
-          >
-            <option value="">Select Branch</option>
-            {["CSE","EEE","ME","CE"].map(b => (
-              <option key={b} value={b}>{b}</option>
-            ))}
-          </select>
-
-          {/* Section (optional) */}
-          {branch && (
-            <select
-              value={section}
-              onChange={e => setSection(e.target.value)}
-              className="
-                w-full px-4 py-3
-                border-2 border-gray-200
-                rounded-lg text-sm
-                outline-none transition
-                focus:border-indigo-500
-                focus:ring-4 focus:ring-indigo-500/10
-              "
-            >
-              <option value="">Select Section (optional)</option>
-              {BRANCH_SECTIONS[branch].map(sec => (
-                <option key={sec} value={sec}>{sec}</option>
+          <div className="teacher-grid" style={{ marginTop: 16 }}>
+            <select value={semester} onChange={(e) => setSemester(e.target.value)} className="input-field">
+              <option value="">Select Semester</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                <option key={s} value={s}>{s}</option>
               ))}
             </select>
-          )}
 
-          {/* Group (optional) */}
-          {branch && semester && (
             <select
-              value={group}
-              onChange={e => setGroup(e.target.value)}
-              className="
-                w-full px-4 py-3
-                border-2 border-gray-200
-                rounded-lg text-sm
-                outline-none transition
-                focus:border-indigo-500
-                focus:ring-4 focus:ring-indigo-500/10
-              "
-            >
-              <option value="">Select Group (optional)</option>
-              {GROUPS.map(g => (
-                <option key={g} value={g}>Group {g}</option>
-              ))}
-            </select>
-          )}
-
-          {/* Subject */}
-          {branch && semester && (
-            <select
-              value={subjectCode}
-              onChange={e => {
-                const selectedCode = e.target.value;
-                const selectedSubject = subjects.find(
-                  s => s.code === selectedCode
-                );
-
-                setSubjectCode(selectedCode);
-                setSubjectName(selectedSubject?.name || "");
+              value={branch}
+              onChange={(e) => {
+                setBranch(e.target.value);
+                setSection("");
+                setGroup("");
+                setSubjectCode("");
+                setSubjectName("");
               }}
-              className="
-                w-full px-4 py-3
-                border-2 border-gray-200
-                rounded-lg text-sm
-                outline-none transition
-                focus:border-indigo-500
-                focus:ring-4 focus:ring-indigo-500/10
-              "
+              className="input-field"
             >
-              <option value="">Select Subject</option>
-              {subjects.map(sub => (
-                <option key={sub.code} value={sub.code}>
-                  {sub.code} - {sub.name}
-                </option>
+              <option value="">Select Branch</option>
+              {["CSE", "EEE", "ME", "CE"].map((b) => (
+                <option key={b} value={b}>{b}</option>
               ))}
             </select>
-          )}
 
-          {/* Button */}
-          <button
-            onClick={createSession}
-            className="
-              mt-2
-              py-3
-              bg-gradient-to-br from-indigo-500 to-purple-600
-              text-white
-              rounded-lg
-              text-sm font-semibold
-              transition
-              hover:shadow-xl hover:-translate-y-0.5
-            "
-          >
-            Create Class
-          </button>
+            {branch && (
+              <select value={section} onChange={(e) => setSection(e.target.value)} className="input-field">
+                <option value="">Select Section (optional)</option>
+                {BRANCH_SECTIONS[branch].map((sec) => (
+                  <option key={sec} value={sec}>{sec}</option>
+                ))}
+              </select>
+            )}
+
+            {branch && semester && (
+              <select value={group} onChange={(e) => setGroup(e.target.value)} className="input-field">
+                <option value="">Select Group (optional)</option>
+                {GROUPS.map((g) => (
+                  <option key={g} value={g}>Group {g}</option>
+                ))}
+              </select>
+            )}
+
+            {branch && semester && (
+              <select
+                value={subjectCode}
+                onChange={(e) => {
+                  const selectedCode = e.target.value;
+                  const selectedSubject = subjects.find((s) => s.code === selectedCode);
+                  setSubjectCode(selectedCode);
+                  setSubjectName(selectedSubject?.name || "");
+                }}
+                className="input-field"
+                style={{ gridColumn: "1 / -1" }}
+              >
+                <option value="">Select Subject</option>
+                {subjects.map((sub) => (
+                  <option key={sub.code} value={sub.code}>
+                    {sub.code} - {sub.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="teacher-actions">
+            <button onClick={createSession} className="btn-primary">Create Class</button>
+            <button onClick={() => navigate(-1)} className="btn-ghost">Back</button>
+          </div>
         </div>
       </div>
     </div>

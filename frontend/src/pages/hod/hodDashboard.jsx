@@ -1,38 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
-import HodHeader from "./hodHeader";
-
-/* =========================
-   Subject Card
-========================= */
-function SubjectCard({ subject, onClick }) {
-  return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-xl shadow p-5 cursor-pointer hover:shadow-lg transition border-l-4 border-blue-600"
-    >
-      <h3 className="text-lg font-semibold text-gray-800">
-        {subject.name}
-      </h3>
-
-      <p className="text-sm text-gray-500">
-        Code: {subject.code}
-      </p>
-
-      <p className="text-sm text-gray-500">
-        Semester: {subject.semester ?? "N/A"}
-      </p>
-
-      <p className="mt-2 text-sm">
-        👨‍🏫 Teacher:{" "}
-        <span className="font-medium text-gray-700">
-          {subject.teacherName || "Not Assigned"}
-        </span>
-      </p>
-    </div>
-  );
-}
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import "../../styles/dashboardExperience.css";
+import BackendStatusBadge from "../../components/BackendStatusBadge";
 
 export default function HodDashboard() {
   const [hod, setHod] = useState(null);
@@ -41,14 +12,8 @@ export default function HodDashboard() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  /* =========================
-     FETCH DATA
-  ========================= */
   useEffect(() => {
-    Promise.all([
-      api.get("/hod/me"),
-      api.get("/hod/subjects")
-    ])
+    Promise.all([api.get("/hod/me"), api.get("/hod/subjects")])
       .then(([profileRes, subjectsRes]) => {
         setHod(profileRes.data);
         setSubjects(subjectsRes.data);
@@ -56,107 +21,138 @@ export default function HodDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* =========================
-     SEMESTER OPTIONS
-  ========================= */
   const semesters = [
     "ALL",
-    ...Array.from(
-      new Set(subjects.map(s => s.semester).filter(Boolean))
-    ).sort((a, b) => a - b)
+    ...Array.from(new Set(subjects.map((s) => s.semester).filter(Boolean))).sort((a, b) => a - b)
   ];
 
-  /* =========================
-     FILTERED SUBJECTS
-  ========================= */
   const filteredSubjects =
     selectedSemester === "ALL"
       ? subjects
-      : subjects.filter(
-          s => s.semester === Number(selectedSemester)
-        );
+      : subjects.filter((s) => s.semester === Number(selectedSemester));
 
-  /* =========================
-     LOADING STATE
-  ========================= */
+  const semesterChartData = Object.entries(
+    subjects.reduce((acc, s) => {
+      const key = `Sem ${s.semester ?? "NA"}`;
+      if (!acc[key]) acc[key] = { total: 0, sum: 0 };
+      acc[key].total += 1;
+      acc[key].sum += Number(s.attendancePercent || 0);
+      return acc;
+    }, {})
+  ).map(([name, v]) => ({
+    name,
+    avgAttendance: Number((v.sum / v.total).toFixed(1))
+  }));
+
+  const logout = () => {
+    localStorage.clear();
+    navigate("/");
+  };
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen text-gray-600">
-        Loading HOD Dashboard...
+      <div className="dash-shell">
+        <div className="dash-wrap"><div className="dash-panel"><p className="dash-sub">Loading HOD dashboard...</p></div></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* HEADER */}
-      <HodHeader
-        collegeId={hod?.collegeId}
-        branch={hod?.branch || "Branch"}
-      />
-
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-
-        {/* =========================
-           HOD INFO
-        ========================= */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <h1 className="text-2xl font-bold text-gray-800">
-            {hod?.name || "Head of Department"}
-          </h1>
-
-          <p className="text-gray-500">
-            {hod?.designation || "HOD"}
-          </p>
-
-          <p className="text-sm text-gray-400">
-            Branch: {hod?.branch || "N/A"}
-          </p>
-        </div>
-
-        {/* =========================
-           SUBJECT LIST + FILTER
-        ========================= */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">
-              Subjects & Assigned Teachers
-            </h2>
-
-            <select
-              value={selectedSemester}
-              onChange={e => setSelectedSemester(e.target.value)}
-              className="px-4 py-2 border rounded-lg text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {semesters.map(sem => (
-                <option key={sem} value={sem}>
-                  {sem === "ALL"
-                    ? "All Semesters"
-                    : `Semester ${sem}`}
-                </option>
-              ))}
-            </select>
+    <div className="dash-shell">
+      <div className="dash-wrap">
+        <div className="dash-panel">
+          <div className="dash-head">
+            <div>
+              <h1 className="dash-title">HOD Dashboard</h1>
+              <p className="dash-sub">Review subjects and attendance summaries.</p>
+              <div style={{ marginTop: 8 }}>
+                <BackendStatusBadge />
+              </div>
+            </div>
+            <div className="dash-actions">
+              <button onClick={() => navigate("/hod/profile")} className="dash-btn-ghost">Profile</button>
+              <button onClick={logout} className="dash-btn-ghost">Logout</button>
+            </div>
           </div>
 
-          {filteredSubjects.length === 0 ? (
-            <div className="bg-white rounded-lg p-6 text-gray-500 text-center">
-              No subjects found for selected semester.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredSubjects.map(subject => (
-                <SubjectCard
-                  key={subject._id}
-                  subject={subject}
-                  onClick={() =>
-                    navigate(`/hod/subject/${subject._id}`)
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </div>
+          <div className="dash-card" style={{ marginTop: 16 }}>
+            <h2 className="text-xl font-semibold">{hod?.name || "Head of Department"}</h2>
+            <p className="dash-sub" style={{ marginTop: 4 }}>College ID: {hod?.collegeId || "-"}</p>
+          </div>
 
+          <div className="dash-kpi-grid">
+            <div className="dash-card">
+              <p className="dash-sub" style={{ marginTop: 0 }}>Subjects</p>
+              <p className="text-3xl font-bold text-slate-800" style={{ marginTop: 4 }}>{subjects.length}</p>
+            </div>
+            <div className="dash-card">
+              <p className="dash-sub" style={{ marginTop: 0 }}>Semesters</p>
+              <p className="text-3xl font-bold text-slate-800" style={{ marginTop: 4 }}>
+                {new Set(subjects.map((s) => s.semester)).size}
+              </p>
+            </div>
+          </div>
+
+          <div className="dash-list">
+            <div className="dash-head">
+              <h3 className="text-xl font-semibold">Subjects & Teachers</h3>
+              <select
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="dash-btn-ghost"
+                style={{ padding: "10px 12px" }}
+              >
+                {semesters.map((sem) => (
+                  <option key={sem} value={sem}>
+                    {sem === "ALL" ? "All Semesters" : `Semester ${sem}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {semesterChartData.length > 0 && (
+              <div className="dash-chart-card" style={{ marginTop: 12, height: 250 }}>
+                <p className="text-sm font-semibold text-slate-700">Average Attendance By Semester</p>
+                <ResponsiveContainer width="100%" height="88%">
+                  <BarChart data={semesterChartData}>
+                    <XAxis dataKey="name" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Bar dataKey="avgAttendance" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {filteredSubjects.length === 0 ? (
+              <div className="dash-card" style={{ marginTop: 12 }}>
+                <p className="dash-sub">No subjects found for selected semester.</p>
+              </div>
+            ) : (
+              <div className="dash-grid">
+                {filteredSubjects.map((subject) => (
+                  <div
+                    key={subject._id}
+                    onClick={() => navigate(`/hod/subject/${subject._id}`)}
+                    className="dash-card dash-click"
+                  >
+                    <h3 className="text-base font-semibold text-slate-800">{subject.name}</h3>
+                    <p className="dash-sub" style={{ marginTop: 6 }}>Code: {subject.code}</p>
+                    <p className="dash-sub" style={{ marginTop: 2 }}>Semester: {subject.semester ?? "N/A"}</p>
+                    <p className="dash-sub" style={{ marginTop: 2 }}>Classes: {subject.classCount ?? 0}</p>
+                    <p className="dash-sub" style={{ marginTop: 2 }}>Slots: {subject.slotCount ?? 0}</p>
+                    <p className="text-sm text-slate-700" style={{ marginTop: 10 }}>
+                      Teacher: {subject.teacherName || "Not Assigned"}
+                    </p>
+                    <p className="text-sm text-slate-700" style={{ marginTop: 4 }}>
+                      Avg Attendance: {subject.attendancePercent ?? 0}%
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

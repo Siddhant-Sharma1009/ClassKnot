@@ -20,11 +20,24 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const APP_VERSION = process.env.APP_VERSION || "1.0.0";
+const CLIENT_ORIGINS = (
+  process.env.CLIENT_ORIGINS ||
+  "http://localhost:5173,http://127.0.0.1:5173,https://class-knot.vercel.app"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 /* -------------------- CORS FIX -------------------- */
 app.use(
   cors({
-    origin: "https://class-knot.vercel.app",
+    origin: (origin, callback) => {
+      if (!origin || CLIENT_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE","OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -36,6 +49,20 @@ app.options("*", cors());
 
 /* -------------------- BODY PARSER -------------------- */
 app.use(express.json());
+
+/* -------------------- HEALTH -------------------- */
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, service: "attendance-backend" });
+});
+
+app.get("/api/version", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "attendance-backend",
+    version: APP_VERSION,
+    environment: process.env.NODE_ENV || "development"
+  });
+});
 
 /* -------------------- ROUTES -------------------- */
 app.use("/api/auth", authRoutes);
@@ -49,6 +76,30 @@ app.use("/api/student", studentRoutes);
 app.use("/api/hod", hodRoutes);
 app.use("/api/ai", aiRoutes);
 
+/* -------------------- NOT FOUND -------------------- */
+app.use((req, res) => {
+  res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+/* -------------------- ERROR HANDLER -------------------- */
+app.use((err, _req, res, _next) => {
+  console.error("Unhandled error:", err);
+  const status = err?.message?.includes("CORS") ? 403 : 500;
+  res.status(status).json({
+    message: status === 403 ? "Request blocked by CORS policy" : "Internal server error"
+  });
+});
+
 /* -------------------- SERVER -------------------- */
-const PORT = process.env.PORT;
-app.listen(PORT);
+const PORT = Number(process.env.PORT) || 5000;
+const server = app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
+});
+
+server.on("error", (err) => {
+  if (err?.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} is already in use.`);
+    return;
+  }
+  console.error("Server startup error:", err);
+});

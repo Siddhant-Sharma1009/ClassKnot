@@ -1,45 +1,51 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import "../../styles/teacherExperience.css";
 
 export default function TeacherProfile() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    name: "",
-    designation: "",
-    subjects: "",
-    password: ""
-  });
+
+  const [profile, setProfile] = useState(null);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    api.get("/teacher/me").then(res => {
-      setForm({
-        name: res.data.name || "",
-        designation: res.data.designation || "",
-        subjects: (res.data.subjects || []).join(", "),
-        password: ""
-      });
-    });
+    api
+      .get("/teacher/me")
+      .then((res) => setProfile(res.data))
+      .catch(() => setProfile({}));
   }, []);
 
   const save = async () => {
     setError("");
     setSuccess("");
-    setLoading(true);
 
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return setError("All fields are required");
+    }
+
+    if (newPassword !== confirmPassword) {
+      return setError("New passwords do not match");
+    }
+
+    setLoading(true);
     try {
-      await api.put("/teacher/me", {
-        ...form,
-        subjects: form.subjects.split(",").map(s => s.trim())
+      const res = await api.put("/teacher/change-password", {
+        oldPassword,
+        newPassword
       });
-      setSuccess("✓ Profile updated successfully!");
-      setTimeout(() => navigate("/teacher"), 2000);
+
+      setSuccess(res.data.message || "Password updated successfully");
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (err) {
-      setError("Failed to update profile. Please try again.");
-      console.error(err);
+      setError(err.response?.data?.message || "Failed to update password");
     } finally {
       setLoading(false);
     }
@@ -51,182 +57,60 @@ export default function TeacherProfile() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-      {/* ================= HEADER ================= */}
-      <header className="
-        sticky top-0 z-[100]
-        bg-gradient-to-br from-indigo-500 to-purple-600
-        text-white shadow-lg p-5
-      ">
-        <div className="max-w-[1200px] mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">👤 Edit Profile</h1>
+    <div className="teacher-shell">
+      <div className="teacher-wrap" style={{ maxWidth: 760 }}>
+        <div className="teacher-panel">
+          <h1 className="teacher-title">Teacher Profile</h1>
+          <p className="teacher-sub">Only password change is allowed from this section.</p>
 
-          <button
-            onClick={() => navigate("/teacher")}
-            className="
-              px-5 py-2
-              bg-white/20 border border-white/30
-              rounded-md text-sm font-medium
-              transition hover:bg-white/30
-            "
-          >
-            ← Back
-          </button>
-        </div>
-      </header>
+          <div className="teacher-panel" style={{ marginTop: 14 }}>
+            <p className="text-sm"><span className="font-semibold">Name:</span> {profile?.name || "-"}</p>
+            <p className="text-sm mt-1"><span className="font-semibold">Designation:</span> {profile?.designation || "-"}</p>
+            <p className="text-sm mt-1"><span className="font-semibold">College ID:</span> {profile?.collegeId || "-"}</p>
+          </div>
 
-      {/* ================= MAIN CONTENT ================= */}
-      <main className="max-w-[600px] mx-auto w-full px-5 py-8 flex-1">
-        <div className="
-          bg-white border border-gray-200
-          rounded-xl p-10 shadow-sm
-        ">
-          {/* Error */}
-          {error && (
-            <div className="
-              mb-5 px-4 py-3
-              bg-red-50 border border-red-500
-              rounded-lg text-red-700
-              text-sm font-medium
-            ">
-              {error}
-            </div>
-          )}
+          <div className="teacher-panel" style={{ marginTop: 14 }}>
+            <h2 className="text-xl font-semibold">Change Password</h2>
 
-          {/* Success */}
-          {success && (
-            <div className="
-              mb-5 px-4 py-3
-              bg-green-50 border border-green-500
-              rounded-lg text-green-700
-              text-sm font-medium
-            ">
-              {success}
-            </div>
-          )}
-
-          {/* Form */}
-          <div className="flex flex-col gap-5">
-            {/* Name */}
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                Full Name
-              </label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={e => setForm({ ...form, name: e.target.value })}
-                className="
-                  w-full px-4 py-3 text-sm
-                  border-2 border-gray-200 rounded-lg
-                  outline-none transition
-                  focus:border-indigo-500
-                  focus:ring-4 focus:ring-indigo-500/10
-                "
-              />
-            </div>
-
-            {/* Designation */}
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                Designation
-              </label>
-              <input
-                type="text"
-                value={form.designation}
-                onChange={e => setForm({ ...form, designation: e.target.value })}
-                className="
-                  w-full px-4 py-3 text-sm
-                  border-2 border-gray-200 rounded-lg
-                  outline-none transition
-                  focus:border-indigo-500
-                  focus:ring-4 focus:ring-indigo-500/10
-                "
-              />
-            </div>
-
-            {/* Subjects */}
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                Subjects (comma separated)
-              </label>
-              <input
-                type="text"
-                value={form.subjects}
-                onChange={e => setForm({ ...form, subjects: e.target.value })}
-                placeholder="e.g., DBMS, Data Structures, Algorithms"
-                className="
-                  w-full px-4 py-3 text-sm
-                  border-2 border-gray-200 rounded-lg
-                  outline-none transition
-                  focus:border-indigo-500
-                  focus:ring-4 focus:ring-indigo-500/10
-                "
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700">
-                New Password (leave blank to keep current)
-              </label>
+            <div className="teacher-grid" style={{ marginTop: 12 }}>
               <input
                 type="password"
-                value={form.password}
-                onChange={e => setForm({ ...form, password: e.target.value })}
-                placeholder="Enter new password"
-                className="
-                  w-full px-4 py-3 text-sm
-                  border-2 border-gray-200 rounded-lg
-                  outline-none transition
-                  focus:border-indigo-500
-                  focus:ring-4 focus:ring-indigo-500/10
-                "
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                placeholder="Old password"
+                className="input-field"
+              />
+
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password"
+                className="input-field"
+              />
+
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="input-field"
               />
             </div>
-          </div>
 
-          {/* Buttons */}
-          <div className="mt-8 flex gap-3">
-            <button
-              onClick={save}
-              disabled={loading}
-              className={`
-                flex-1 py-3 rounded-lg
-                text-sm font-semibold text-white
-                transition
-                ${loading
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-gradient-to-br from-indigo-500 to-purple-600 hover:shadow-xl hover:-translate-y-0.5"}
-              `}
-            >
-              {loading ? "Saving..." : "Save Changes"}
-            </button>
+            {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+            {success && <p className="text-sm text-green-600 mt-3">{success}</p>}
 
-            <button
-              onClick={logout}
-              className="
-                flex-1 py-3
-                bg-white text-indigo-500
-                border-2 border-indigo-500
-                rounded-lg text-sm font-semibold
-                transition hover:bg-indigo-50
-              "
-            >
-              Logout
-            </button>
+            <div className="teacher-actions">
+              <button onClick={save} disabled={loading} className="btn-primary">
+                {loading ? "Updating..." : "Update Password"}
+              </button>
+              <button onClick={() => navigate("/teacher")} className="btn-ghost">Back</button>
+              <button onClick={logout} className="btn-ghost">Logout</button>
+            </div>
           </div>
         </div>
-      </main>
-
-      {/* ================= FOOTER ================= */}
-      <footer className="
-        bg-slate-100 border-t border-gray-200
-        text-center py-5
-        text-sm text-gray-400
-      ">
-        © 2026 ClassKnot • Attendance Management System
-      </footer>
+      </div>
     </div>
   );
 }

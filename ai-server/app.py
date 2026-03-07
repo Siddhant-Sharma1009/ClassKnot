@@ -1,133 +1,309 @@
-from flask import Flask, request, jsonify
-import cv2
+from collections import deque
 import threading
 import time
+
+import cv2
 import numpy as np
+from flask import Flask, jsonify, request
 from ultralytics import YOLO
-import hashlib
 
 app = Flask(__name__)
 
 model = YOLO("yolov8n.pt")
 
-latest_count = 0
-is_running = False
-camera_error = None
+FREEZE_TIMEOUT_SEC = 5.0
 
-tracked_ids = {}
-next_id = 0
+PROFILES = {
+    "default": {
+        "conf": 0.35,
+        "iou": 0.45,
+        "max_distance_px": 60,
+        "track_ttl_sec": 1.8,
+        "min_hits_to_confirm": 2,
+        "min_box_area": 700,
+    },
+    # Camera mounted at teacher side/front center facing students.
+    "front_center": {
+        "conf": 0.30,
+        "iou": 0.45,
+        "max_distance_px": 80,
+        "track_ttl_sec": 2.4,
+        "min_hits_to_confirm": 2,
+        "min_box_area": 600,
+    },
+}
 
-MAX_DISTANCE = 50
-FREEZE_TIMEOUT = 5   # seconds without frame change
+runtime_cfg = dict(PROFILES["front_center"])
+runtime_profile = "front_center"
 
-def centroid(box):
+state_lock = threading.Lock()
+worker_thread = None
+stop_event = threading.Event()
+
+state = {
+    "running": False,
+    "error": None,
+    "count": 0,
+    "instant_count": 0,
+    "fps": 0.0,
+    "source": None,
+    "started_at": None,
+    "profile": runtime_profile,
+}
+
+tracks = {}
+next_track_id = 0
+
+
+def _set_state(**updates):
+    with state_lock:
+        state.update(updates)
+
+
+def _get_state_snapshot():
+    with state_lock:
+        return dict(state)
+
+
+def _parse_source(url_or_index):
+    if url_or_index is None:
+        return None
+    text = str(url_or_index).strip()
+    if text == "":
+        return None
+    if text.isdigit():
+        return int(text)
+    return text
+
+
+def _centroid(box):
     x1, y1, x2, y2 = box
-    return ((x1 + x2) // 2, (y1 + y2) // 2)
+    return np.array([(x1 + x2) / 2.0, (y1 + y2) / 2.0], dtype=np.float32)
 
-def frame_hash(frame):
-    return hashlib.md5(frame.tobytes()).hexdigest()
 
-def process_stream(video_url):
-    global latest_count, is_running, tracked_ids, next_id, camera_error
+def _frame_signature(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    small = cv2.resize(gray, (32, 18), interpolation=cv2.INTER_AREA)
+    return small
 
-    cap = cv2.VideoCapture(0 if video_url == "0" else video_url)
 
-    if not cap.isOpened():
-        camera_error = "Unable to open camera. Please open IP camera."
-        is_running = False
+def _reset_tracking_state():
+    global tracks, next_track_id
+    tracks = {}
+    next_track_id = 0
+
+
+def _associate_detections(detections, now_ts):
+    global tracks, next_track_id
+
+    if not detections:
         return
 
-    tracked_ids = {}
-    next_id = 0
-    camera_error = None
+    unmatched_track_ids = set(tracks.keys())
 
-    last_hash = None
-    last_change_time = time.time()
+    for det in detections:
+        c = _centroid(det)
+        best_id = None
+        best_dist = None
 
-    while is_running:
-        ret, frame = cap.read()
+        for tid in list(unmatched_track_ids):
+            dist = float(np.linalg.norm(c - tracks[tid]["centroid"]))
+            if dist <= runtime_cfg["max_distance_px"] and (best_dist is None or dist < best_dist):
+                best_dist = dist
+                best_id = tid
 
-        if not ret or frame is None:
-            camera_error = "Camera disconnected. Please open IP camera."
-            break
-
-        frame = cv2.resize(frame, (640, 480))
-
-        # 🔴 FREEZE DETECTION (KEY FIX)
-        current_hash = frame_hash(frame)
-        if last_hash == current_hash:
-            if time.time() - last_change_time > FREEZE_TIMEOUT:
-                camera_error = "Camera stream frozen. Please open IP camera."
-                break
+        if best_id is not None:
+            track = tracks[best_id]
+            track["centroid"] = c
+            track["last_seen"] = now_ts
+            track["hits"] += 1
+            unmatched_track_ids.remove(best_id)
         else:
-            last_hash = current_hash
-            last_change_time = time.time()
+            tracks[next_track_id] = {
+                "centroid": c,
+                "last_seen": now_ts,
+                "hits": 1,
+            }
+            next_track_id += 1
 
-        results = model(frame, conf=0.5, classes=[0], verbose=False)
 
-        detections = []
-        for r in results:
-            for box in r.boxes.xyxy.cpu().numpy():
-                detections.append(box.astype(int))
+def _prune_tracks(now_ts):
+    expired = []
+    for tid, track in tracks.items():
+        if now_ts - track["last_seen"] > runtime_cfg["track_ttl_sec"]:
+            expired.append(tid)
+    for tid in expired:
+        del tracks[tid]
 
-        new_tracked = {}
 
-        for box in detections:
-            c = centroid(box)
-            matched = False
+def _compute_counts():
+    instant_count = len(tracks)
+    confirmed_count = sum(
+        1 for t in tracks.values() if t["hits"] >= runtime_cfg["min_hits_to_confirm"]
+    )
+    return instant_count, confirmed_count
 
-            for tid, prev_c in tracked_ids.items():
-                dist = np.linalg.norm(np.array(c) - np.array(prev_c))
-                if dist < MAX_DISTANCE:
-                    new_tracked[tid] = c
-                    matched = True
-                    break
 
-            if not matched:
-                new_tracked[next_id] = c
-                next_id += 1
+def _apply_profile(profile_name):
+    global runtime_cfg, runtime_profile
 
-        tracked_ids = new_tracked
-        latest_count = len(tracked_ids)
+    name = (profile_name or "front_center").strip().lower().replace("-", "_")
+    if name not in PROFILES:
+        name = "front_center"
 
-        time.sleep(1)
+    runtime_cfg = dict(PROFILES[name])
+    runtime_profile = name
 
-    cap.release()
-    is_running = False
+
+def process_stream(source):
+    _reset_tracking_state()
+    stop_event.clear()
+
+    cap = cv2.VideoCapture(source)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+    if not cap.isOpened():
+        _set_state(
+            running=False,
+            error="Unable to open camera stream.",
+            count=0,
+            instant_count=0,
+            fps=0.0,
+        )
+        return
+
+    _set_state(error=None)
+
+    last_sig = None
+    last_change_ts = time.time()
+
+    frame_window = deque(maxlen=20)
+    count_window = deque(maxlen=5)
+
+    try:
+        while not stop_event.is_set():
+            t0 = time.time()
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                _set_state(error="Camera disconnected or stream unavailable.")
+                break
+
+            frame = cv2.resize(frame, (960, 540), interpolation=cv2.INTER_AREA)
+
+            sig = _frame_signature(frame)
+            if last_sig is not None:
+                delta = float(np.mean(cv2.absdiff(sig, last_sig)))
+                if delta < 1.0:
+                    if time.time() - last_change_ts > FREEZE_TIMEOUT_SEC:
+                        _set_state(error="Camera stream appears frozen.")
+                        break
+                else:
+                    last_change_ts = time.time()
+            else:
+                last_change_ts = time.time()
+            last_sig = sig
+
+            results = model(
+                frame,
+                conf=runtime_cfg["conf"],
+                iou=runtime_cfg["iou"],
+                classes=[0],
+                verbose=False,
+            )
+
+            detections = []
+            for r in results:
+                if r.boxes is None:
+                    continue
+                boxes = r.boxes.xyxy.cpu().numpy()
+                for box in boxes:
+                    x1, y1, x2, y2 = box
+                    area = max(0.0, (x2 - x1) * (y2 - y1))
+                    if area >= runtime_cfg["min_box_area"]:
+                        detections.append(box.astype(np.int32))
+
+            now_ts = time.time()
+            _associate_detections(detections, now_ts)
+            _prune_tracks(now_ts)
+            instant_count, confirmed_count = _compute_counts()
+
+            count_window.append(confirmed_count)
+            stable_count = int(round(sum(count_window) / len(count_window))) if count_window else 0
+
+            frame_time = max(time.time() - t0, 1e-6)
+            frame_window.append(1.0 / frame_time)
+            avg_fps = float(sum(frame_window) / len(frame_window)) if frame_window else 0.0
+
+            _set_state(
+                count=stable_count,
+                instant_count=instant_count,
+                fps=round(avg_fps, 2),
+                error=None,
+            )
+    finally:
+        cap.release()
+        _set_state(running=False)
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    snapshot = _get_state_snapshot()
+    return jsonify({
+        "ok": True,
+        "model": "yolov8n.pt",
+        "running": snapshot["running"],
+    })
+
 
 @app.route("/start", methods=["POST"])
 def start():
-    global is_running, camera_error
+    global worker_thread
 
-    url = request.json.get("url")
-    if not url:
-        return jsonify({"error": "Camera URL required"}), 400
+    payload = request.json or {}
+    source = _parse_source(payload.get("url", "0"))
+    profile = payload.get("profile", "front_center")
+    if source is None:
+        return jsonify({"error": "Camera source required"}), 400
 
-    if is_running:
+    snapshot = _get_state_snapshot()
+    if snapshot["running"]:
         return jsonify({"message": "Already running"}), 200
 
-    camera_error = None
-    is_running = True
+    _apply_profile(profile)
 
-    thread = threading.Thread(target=process_stream, args=(url,))
-    thread.daemon = True
-    thread.start()
+    _set_state(
+        running=True,
+        error=None,
+        count=0,
+        instant_count=0,
+        fps=0.0,
+        source=str(source),
+        started_at=int(time.time()),
+        profile=runtime_profile,
+    )
 
-    return jsonify({"message": "AI counting started"})
+    worker_thread = threading.Thread(target=process_stream, args=(source,), daemon=True)
+    worker_thread.start()
+
+    return jsonify({
+        "message": "AI counting started",
+        "source": str(source),
+        "profile": runtime_profile,
+    })
+
 
 @app.route("/count", methods=["GET"])
 def count():
-    return jsonify({
-        "count": latest_count,
-        "running": is_running,
-        "error": camera_error
-    })
+    snapshot = _get_state_snapshot()
+    return jsonify(snapshot)
+
 
 @app.route("/stop", methods=["POST"])
 def stop():
-    global is_running
-    is_running = False
+    stop_event.set()
+    _set_state(running=False)
     return jsonify({"message": "AI stopped"})
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=7000)

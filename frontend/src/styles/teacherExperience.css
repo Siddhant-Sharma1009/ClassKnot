@@ -1,0 +1,174 @@
+.teacher-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 12% 8%, #d7e5ff 0%, transparent 35%),
+    radial-gradient(circle at 82% 12%, #d0f4e7 0%, transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eaf0ff 100%);
+}
+
+.teacher-wrap {
+  width: min(1150px, 100%);
+  margin: 0 auto;
+}
+
+.teacher-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  padding: clamp(16px, 2vw, 28px);
+}
+
+.teacher-title {
+  margin: 0;
+  color: #111a34;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  font-size: clamp(24px, 3.2vw, 46px);
+  font-weight: 700;
+}
+
+.teacher-sub {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: clamp(14px, 1.4vw, 18px);
+}
+
+.teacher-grid {
+  margin-top: 18px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.teacher-card {
+  border: 1px solid #d8e2ff;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.teacher-card:hover {
+  transform: translateY(-3px);
+  border-color: #7f9dff;
+  box-shadow: 0 10px 22px rgba(32, 60, 132, 0.14);
+}
+
+.teacher-actions {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn-primary,
+.btn-ghost {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary {
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
+}
+
+.btn-primary:disabled {
+  background: #95a6d9;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  color: #1d2f66;
+  background: #e8eeff;
+}
+
+.input-field {
+  width: 100%;
+  border: 1px solid #ccd7ff;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.input-field:focus {
+  outline: 2px solid #7f9dff;
+  outline-offset: 1px;
+}
+
+.teacher-chart-card {
+  border: 1px solid #d8e2ff;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+  padding: 16px;
+}
+
+@media (max-width: 900px) {
+  .teacher-shell {
+    padding: 16px;
+  }
+
+  .teacher-wrap {
+    width: 100%;
+  }
+
+  .teacher-panel {
+    padding: 16px;
+  }
+
+  .teacher-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .teacher-shell {
+    padding: 10px;
+  }
+
+  .teacher-panel {
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .teacher-title {
+    font-size: clamp(22px, 7vw, 32px);
+  }
+
+  .teacher-sub {
+    margin-top: 6px;
+    font-size: 13px;
+  }
+
+  .teacher-actions {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .btn-primary,
+  .btn-ghost {
+    width: 100%;
+    text-align: center;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .teacher-card,
+  .teacher-chart-card {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .input-field {
+    padding: 10px;
+    font-size: 13px;
+  }
+}

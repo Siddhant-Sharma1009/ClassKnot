@@ -8,16 +8,6 @@ const qrSessionSchema = new mongoose.Schema(
             required: true
         },
 
-        totalRows: {
-            type: Number,
-            required: true
-        },
-
-        currentRow: {
-            type: Number,
-            default: 1
-        },
-
         isActive: {
             type: Boolean,
             default: true
@@ -28,6 +18,16 @@ const qrSessionSchema = new mongoose.Schema(
         },
 
         tokenExpiresAt: {
+            type: Number,
+            default: null
+        },
+
+        previousToken: {
+            type: String,
+            default: null
+        },
+
+        previousTokenExpiresAt: {
             type: Number,
             default: null
         }

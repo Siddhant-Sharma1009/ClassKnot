@@ -2,7 +2,7 @@ import express from "express";
 import {
   startQRSession,
   generateQR,
-  nextRow,
+  endQRSession,
   submitQR,
   getQRPreview,
   saveQRAttendance,
@@ -16,7 +16,7 @@ const router = express.Router();
 
 router.post("/start", protect, allowRoles("TEACHER"), startQRSession);
 router.get("/generate/:qrSessionId", protect, allowRoles("TEACHER"), generateQR);
-router.post("/next-row/:qrSessionId", protect, allowRoles("TEACHER"), nextRow);
+router.post("/end/:qrSessionId", protect, allowRoles("TEACHER"), endQRSession);
 
 router.post("/submit", protect, allowRoles("STUDENT"), submitQR);
 

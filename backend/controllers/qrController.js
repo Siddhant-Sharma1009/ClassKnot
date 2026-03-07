@@ -1,134 +1,77 @@
+import mongoose from "mongoose";
+import crypto from "crypto";
 import QRSession from "../models/QRSession.js";
-import QRSubmission from "../models/QRSubmission.js";   
+import QRSubmission from "../models/QRSubmission.js";
 import AttendanceRecord from "../models/AttendanceRecord.js";
 import AttendanceSlot from "../models/AttendanceSlot.js";
-import { v4 as uuid } from "uuid";
-import crypto from "crypto";
-import Student from "../models/Student.js";
-import ClassSession from "../models/ClassSession.js";
-
 
 export const startQRSession = async (req, res) => {
-  const { attendanceSlotId, totalRows } = req.body;
-
-  if (!totalRows || totalRows < 1) {
-    return res.status(400).json({ message: "Invalid rows" });
-  }
-
-  const qrSession = await QRSession.create({
-    attendanceSlotId,
-    totalRows
-  });
-
-  res.json(qrSession);
-};
-
-
-export const nextRow = async (req, res) => {
-  const { qrSessionId } = req.params;
-
-  const session = await QRSession.findById(qrSessionId);
-
-  if (session.currentRow < session.totalRows) {
-    session.currentRow += 1;
-  } else {
-    session.isActive = false;
-  }
-
-  await session.save();
-  res.json(session);
-};
-
-
-
-
-
-
-
-export const submitQR = async (req, res) => {
-  const {
-    qrSessionId,
-    attendanceSlotId,
-    row,
-    token
-  } = req.body;
-
   try {
-    /* 🔑 RESOLVE USER → STUDENT (FINAL & CORRECT) */
-    const student = await Student.findOne({
-      userId: req.user.userId
-    });
+    const { attendanceSlotId } = req.body;
 
-    if (!student) {
-      return res.status(404).json({
-        message: "Student profile not found"
-      });
+    if (!attendanceSlotId || !mongoose.Types.ObjectId.isValid(attendanceSlotId)) {
+      return res.status(400).json({ message: "Invalid attendance slot id" });
     }
 
-    const studentId = student._id; // ✅ ATTENDANCE ID
+    const slot = await AttendanceSlot.findById(attendanceSlotId);
+    if (!slot) {
+      return res.status(404).json({ message: "Attendance slot not found" });
+    }
 
-    /* =============================
-       VALIDATE QR SESSION
-       ============================= */
+    const qrSession = await QRSession.create({ attendanceSlotId });
+    return res.json(qrSession);
+  } catch (err) {
+    console.error("startQRSession error:", err);
+    return res.status(500).json({ message: "Failed to start QR session" });
+  }
+};
+
+export const submitQR = async (req, res) => {
+  try {
+    const { qrSessionId, attendanceSlotId, token } = req.body;
+
     const session = await QRSession.findById(qrSessionId);
-
     if (!session || !session.isActive) {
       return res.status(400).json({ message: "QR session inactive" });
     }
 
-    if (session.currentRow !== row) {
-      return res.status(400).json({ message: "QR row expired" });
+    if (String(session.attendanceSlotId) !== String(attendanceSlotId)) {
+      return res.status(400).json({ message: "QR slot mismatch" });
     }
 
-    if (session.currentToken !== token) {
+    const now = Date.now();
+    const isCurrentToken = session.currentToken === token;
+    const isPreviousToken = session.previousToken === token;
+    const isCurrentTokenValid =
+      isCurrentToken && session.tokenExpiresAt && now <= session.tokenExpiresAt;
+    const isPreviousTokenValid =
+      isPreviousToken &&
+      session.previousTokenExpiresAt &&
+      now <= session.previousTokenExpiresAt;
+
+    if (!isCurrentTokenValid && !isPreviousTokenValid) {
+      if (isCurrentToken || isPreviousToken) {
+        return res.status(400).json({ message: "QR expired" });
+      }
       return res.status(400).json({ message: "QR token invalid" });
     }
 
-    if (Date.now() > session.tokenExpiresAt) {
-      return res.status(400).json({ message: "QR expired" });
-    }
-
-    /* =============================
-       PREVENT DUPLICATE SUBMISSION
-       ============================= */
-    const alreadySubmitted = await QRSubmission.findOne({
-      qrSessionId,
-      studentId
-    });
-
-    if (alreadySubmitted) {
-      return res.status(400).json({
-        message: "Attendance already submitted for this session"
-      });
-    }
-
-    /* =============================
-       SAVE QR SUBMISSION
-       ============================= */
     await QRSubmission.create({
       qrSessionId,
       attendanceSlotId,
-      studentId,           // ✅ Student._id
-      rowNumber: row,
+      studentId: req.user.userId,
       qrToken: token
     });
 
     return res.json({ message: "Attendance submitted" });
-
   } catch (err) {
-    if (err.code === 11000) {
-      return res.status(400).json({
-        message: "Attendance already submitted for this session"
-      });
+    if (err?.code === 11000) {
+      return res.status(409).json({ message: "Attendance already submitted" });
     }
-
     console.error("submitQR error:", err);
-    return res.status(500).json({
-      message: "Failed to submit attendance"
-    });
+    return res.status(500).json({ message: "Failed to submit attendance" });
   }
 };
-
 
 export const getQRPreview = async (req, res) => {
   try {
@@ -139,161 +82,129 @@ export const getQRPreview = async (req, res) => {
       return res.status(404).json({ message: "QR session not found" });
     }
 
-    // 1️⃣ Get raw submissions
-    const submissions = await QRSubmission.find({ qrSessionId }).lean();
+    const submissions = await QRSubmission.find({ qrSessionId }).populate(
+      "studentId",
+      "collegeId name"
+    );
 
-    // 2️⃣ Collect studentIds
-    const studentIds = submissions.map(s => s.studentId);
-
-    // 3️⃣ Fetch students explicitly
-    const students = await Student.find({
-      _id: { $in: studentIds }
-    })
-      .select("_id collegeId name")
-      .lean();
-
-    // 4️⃣ Build lookup map
-    const studentMap = {};
-    students.forEach(st => {
-      studentMap[st._id.toString()] = st;
+    return res.json({
+      submissions,
+      attendanceSlotId: qrSession.attendanceSlotId,
+      totalSubmissions: submissions.length
     });
-
-    // 5️⃣ Attach collegeId manually
-    const enrichedSubmissions = submissions.map(s => ({
-      ...s,
-      studentId: studentMap[s.studentId.toString()] || null
-    }));
-
-    // 6️⃣ Row stats
-    const rowStats = {};
-    for (let i = 1; i <= qrSession.totalRows; i++) {
-      rowStats[i] = 0;
-    }
-
-    enrichedSubmissions.forEach(s => {
-      if (rowStats[s.rowNumber] !== undefined) {
-        rowStats[s.rowNumber] += 1;
-      }
-    });
-
-    res.json({
-      submissions: enrichedSubmissions,
-      rowStats,
-      totalRows: qrSession.totalRows
-    });
-
   } catch (err) {
-    console.error("QR preview error:", err);
-    res.status(500).json({ message: "Failed to load preview" });
+    console.error("getQRPreview error:", err);
+    return res.status(500).json({ message: "Failed to load QR preview" });
   }
 };
-
-
-
-
-
 
 export const saveQRAttendance = async (req, res) => {
   try {
     const { qrSessionId } = req.params;
 
-    // 1️⃣ Get QR session
     const qrSession = await QRSession.findById(qrSessionId);
     if (!qrSession) {
       return res.status(404).json({ message: "QR session not found" });
     }
 
-    const attendanceSlotId = qrSession.attendanceSlotId;
+    const submissions = await QRSubmission.find({ qrSessionId });
+    const presentStudentIds = [...new Set(submissions.map((s) => s.studentId.toString()))];
 
-    // 2️⃣ Students who scanned QR (PRESENT)
-    const qrSubmissions = await QRSubmission.find({ qrSessionId })
-      .select("studentId");
-
-    const presentStudentIds = new Set(
-      qrSubmissions.map(s => s.studentId.toString())
-    );
-
-    // 3️⃣ Get ALL attendance records for this slot
-    const records = await AttendanceRecord.find({
-      attendanceSlotId
-    });
-
-    // 4️⃣ Update existing records
-    for (const record of records) {
-      const isPresent = presentStudentIds.has(
-        record.studentId.toString()
+    if (presentStudentIds.length > 0) {
+      await AttendanceRecord.updateMany(
+        {
+          attendanceSlotId: qrSession.attendanceSlotId,
+          studentId: { $in: presentStudentIds }
+        },
+        { status: "P", method: "QR" }
       );
-
-      if (isPresent) {
-        record.status = "P";
-        record.method = "QR";
-        await record.save();
-      }
     }
 
-    // 5️⃣ Close QR session
+    await AttendanceRecord.updateMany(
+      {
+        attendanceSlotId: qrSession.attendanceSlotId,
+        studentId: { $nin: presentStudentIds }
+      },
+      { status: "A" }
+    );
+
+    return res.json({ message: "Attendance saved successfully" });
+  } catch (err) {
+    console.error("saveQRAttendance error:", err);
+    return res.status(500).json({ message: "Failed to save QR attendance" });
+  }
+};
+
+export const retakeQR = async (req, res) => {
+  try {
+    const { qrSessionId } = req.params;
+
+    const qrSession = await QRSession.findById(qrSessionId);
+    if (!qrSession) {
+      return res.status(404).json({ message: "QR session not found" });
+    }
+
     qrSession.isActive = false;
     await qrSession.save();
 
-    res.json({ message: "Attendance saved successfully" });
+    await QRSubmission.deleteMany({ qrSessionId });
 
+    return res.json({
+      message: "QR retake initialized",
+      attendanceSlotId: qrSession.attendanceSlotId
+    });
   } catch (err) {
-    console.error("QR save error:", err);
-    res.status(500).json({ message: "Failed to save attendance" });
+    console.error("retakeQR error:", err);
+    return res.status(500).json({ message: "Failed to retake QR session" });
   }
 };
 
+export const endQRSession = async (req, res) => {
+  try {
+    const { qrSessionId } = req.params;
 
+    const session = await QRSession.findById(qrSessionId);
+    if (!session) {
+      return res.status(404).json({ message: "QR session not found" });
+    }
 
+    session.isActive = false;
+    await session.save();
 
-
-
-
-export const retakeQR = async (req, res) => {
-  const { qrSessionId } = req.params;
-
-  const qrSession = await QRSession.findById(qrSessionId);
-  if (!qrSession) {
-    return res.status(404).json({ message: "QR session not found" });
+    return res.json({ message: "QR session ended" });
+  } catch (err) {
+    console.error("endQRSession error:", err);
+    return res.status(500).json({ message: "Failed to end QR session" });
   }
-
-  // Deactivate old session
-  qrSession.isActive = false;
-  await qrSession.save();
-
-  // Remove old submissions
-  await QRSubmission.deleteMany({ qrSessionId });
-
-  // IMPORTANT: return slotId so frontend can restart correctly
-  res.json({
-    message: "QR retake initialized",
-    attendanceSlotId: qrSession.attendanceSlotId
-  });
 };
 
 export const generateQR = async (req, res) => {
-  const { qrSessionId } = req.params;
+  try {
+    const { qrSessionId } = req.params;
 
-  const session = await QRSession.findById(qrSessionId);
-  if (!session || !session.isActive) {
-    return res.status(400).json({ message: "QR session ended" });
+    const session = await QRSession.findById(qrSessionId);
+    if (!session || !session.isActive) {
+      return res.status(400).json({ message: "QR session ended" });
+    }
+
+    const token = crypto.randomBytes(16).toString("hex");
+    const expiresAt = Date.now() + 10000;
+
+    session.previousToken = session.currentToken;
+    session.previousTokenExpiresAt = session.tokenExpiresAt;
+
+    session.currentToken = token;
+    session.tokenExpiresAt = expiresAt;
+    await session.save();
+
+    return res.json({
+      qrSessionId,
+      attendanceSlotId: session.attendanceSlotId,
+      token,
+      expiresAt
+    });
+  } catch (err) {
+    console.error("generateQR error:", err);
+    return res.status(500).json({ message: "Failed to generate QR" });
   }
-
-  const token = crypto.randomBytes(16).toString("hex");
-  const expiresAt = Date.now() + 5000;
-
-  // STORE CURRENT VALID TOKEN ON SERVER
-  session.currentToken = token;
-  session.tokenExpiresAt = expiresAt;
-  await session.save();
-
-  res.json({
-  qrSessionId,
-  attendanceSlotId: session.attendanceSlotId,
-  row: session.currentRow,
-  token,
-  expiresAt,
-  serverNow: Date.now() 
-});
-
 };

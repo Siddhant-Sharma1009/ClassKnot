@@ -5,7 +5,8 @@ import {
   getMyAttendance,
   getMyAttendanceSummary,
   getMySubjects,
-  getSubjectAttendance
+  getSubjectAttendance,
+  changeStudentPassword
 } from "../controllers/studentController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -61,6 +62,13 @@ router.get(
   protect,
   allowRoles("STUDENT"),
   getSubjectAttendance
+);
+
+router.put(
+  "/change-password",
+  protect,
+  allowRoles("STUDENT"),
+  changeStudentPassword
 );
 
 export default router;

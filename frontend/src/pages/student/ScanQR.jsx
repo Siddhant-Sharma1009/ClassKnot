@@ -1,4 +1,4 @@
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useEffect, useRef } from "react";
 import api from "../../api/axios";
 
@@ -8,7 +8,7 @@ export default function QrScannerModal({ onClose }) {
   const scannedRef = useRef(false);
 
   useEffect(() => {
-    // 🚫 Prevent double init (React StrictMode)
+    // Prevent double init in React StrictMode
     if (startedRef.current) return;
     startedRef.current = true;
 
@@ -29,56 +29,56 @@ export default function QrScannerModal({ onClose }) {
     const startScanner = async () => {
       try {
         await scanner.start(
-          { facingMode: "environment" },
           {
-            fps: 20,
-            qrbox: { width: 300, height: 300 },
-            disableFlip: true
+            facingMode: { ideal: "environment" },
+            focusMode: "continuous",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          {
+            fps: 12,
+            aspectRatio: 1.777778,
+            disableFlip: false,
+            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
           },
           async (decodedText) => {
             if (scannedRef.current) return;
-            scannedRef.current = true;
 
             try {
               const data = JSON.parse(decodedText);
 
-              // 🔐 STRICT QR VALIDATION
-              if (
-                !data.qrSessionId ||
-                !data.attendanceSlotId ||
-                data.row == null ||
-                !data.token
-              ) {
-                alert("❌ Invalid or incomplete QR code");
-                await stopScannerSafely();
-                onClose();
+              if (!data.qrSessionId || !data.attendanceSlotId || !data.token) {
                 return;
               }
 
+              scannedRef.current = true;
               await api.post("/qr/submit", {
                 qrSessionId: data.qrSessionId,
                 attendanceSlotId: data.attendanceSlotId,
-                row: data.row,
                 token: data.token,
                 expiresAt: data.expiresAt
               });
 
-              alert("✅ Attendance marked successfully");
+              alert("Attendance marked successfully");
               await stopScannerSafely();
               onClose();
             } catch (err) {
-              alert(
-                err.response?.data?.message ||
-                "❌ Failed to mark attendance"
-              );
-              await stopScannerSafely();
-              onClose();
+              const message = err.response?.data?.message || "Failed to mark attendance";
+
+              if (message === "QR token invalid" || message === "QR expired") {
+                scannedRef.current = false;
+                return;
+              }
+
+              alert(message);
+              scannedRef.current = false;
             }
           },
-          () => {} // ignore scan errors
+          () => {}
         );
       } catch {
-        alert("❌ Camera not accessible");
+        alert("Camera not accessible");
         await stopScannerSafely();
         onClose();
       }
@@ -94,11 +94,8 @@ export default function QrScannerModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
       <div className="bg-white rounded-xl p-6 w-[95%] max-w-sm">
-        <h3 className="text-lg font-semibold mb-4 text-center">
-          Scan Attendance QR
-        </h3>
+        <h3 className="text-lg font-semibold mb-4 text-center">Scan Attendance QR</h3>
 
-        {/* ⚠️ MUST EXIST ONLY ONCE */}
         <div id="qr-reader" />
 
         <button

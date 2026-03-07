@@ -11,39 +11,29 @@ import {
 
 const router = express.Router();
 
-// 🔐 HOD protected route
-router.get(
-  "/me",
-  protect,
-  allowRoles("HOD"),
-  (req, res) => {
-    res.status(200).json({
-      message: "HOD login successful",
-      user: req.user
-    });
-  }
-);
-
-
 /* 🔐 All routes protected */
 router.use(protect);
 
 /* HOD PROFILE */
-router.get("/profile", getHodProfile);
+router.get("/me", allowRoles("HOD"), getHodProfile);
+router.get("/profile", allowRoles("HOD"), getHodProfile);
 
 router.put(
   "/change-password",
-  protect,
   allowRoles("HOD"),
   changeHodPassword
 );
 
 
 /* SUBJECTS WITH TEACHERS */
-router.get("/subjects", getHodSubjects);
+router.get("/subjects", allowRoles("HOD"), getHodSubjects);
 
 /* SUBJECT ATTENDANCE */
-router.get("/subject/:subjectId/attendance", getSubjectAttendance);
+router.get(
+  "/subject/:subjectId/attendance",
+  allowRoles("HOD"),
+  getSubjectAttendance
+);
 
 export default router;
 

@@ -1,8 +1,10 @@
 import Student from "../models/Student.js";
+import User from "../models/User.js";
 import ClassSession from "../models/ClassSession.js";
 import AttendanceSlot from "../models/AttendanceSlot.js";
 import AttendanceRecord from "../models/AttendanceRecord.js";
 import Subject from "../models/Subject.js";
+import bcrypt from "bcryptjs";
 
 /* ===================== EXISTING (UNCHANGED) ===================== */
 export const getMyProfile = async (req, res) => {
@@ -255,6 +257,42 @@ export const getSubjectAttendance = async (req, res) => {
     res.json(response);
   } catch (err) {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+/* ===================== PASSWORD (ADDED) ===================== */
+export const changeStudentPassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Old password and new password are required"
+      });
+    }
+
+    if (String(newPassword).trim().length < 6) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters"
+      });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user || user.role !== "STUDENT") {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Old password is incorrect" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    return res.status(500).json({ message: "Server error" });
   }
 };
 

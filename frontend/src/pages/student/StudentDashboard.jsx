@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import QrScannerModal from "./ScanQR";
+import "../../styles/dashboardExperience.css";
+import BackendStatusBadge from "../../components/BackendStatusBadge";
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState(null);
@@ -10,10 +13,9 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
-
-  // ✅ overall attendance
   const [showOverall, setShowOverall] = useState(false);
   const [overallData, setOverallData] = useState([]);
+  const [overallLoading, setOverallLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -25,8 +27,7 @@ export default function StudentDashboard() {
 
         const s = await api.get("/student/subjects");
         setSubjects(s.data);
-      } catch (err) {
-        console.error("Student dashboard load failed", err);
+      } catch {
       } finally {
         setLoading(false);
       }
@@ -46,231 +47,208 @@ export default function StudentDashboard() {
   };
 
   const loadOverallAttendance = async () => {
+    if (subjects.length === 0) {
+      setOverallData([]);
+      setShowOverall(true);
+      setSubjectAttendance(null);
+      setSelectedSubject(null);
+      return;
+    }
+
     try {
-      const data = [];
-      for (const sub of subjects) {
-        const res = await api.get(
-          `/student/subject/${sub.subjectCode}/attendance`
-        );
-        data.push({
+      setOverallLoading(true);
+      const results = await Promise.all(
+        subjects.map(async (sub) => {
+          const res = await api.get(`/student/subject/${sub.subjectCode}/attendance`);
+          return {
           code: sub.subjectCode,
           name: sub.subjectName,
           percentage: res.data.summary.percentage
-        });
-      }
-      setOverallData(data);
+          };
+        })
+      );
+      setOverallData(results);
       setShowOverall(true);
       setSubjectAttendance(null);
       setSelectedSubject(null);
     } catch {
       alert("Failed to load overall attendance");
+    } finally {
+      setOverallLoading(false);
     }
   };
 
   const logout = () => {
     localStorage.clear();
-    window.location.href = "/";
+    navigate("/");
   };
 
-  /* ================= LOADING ================= */
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-gray-500 text-lg">Loading…</p>
+      <div className="dash-shell">
+        <div className="dash-wrap"><div className="dash-panel"><p className="dash-sub">Loading...</p></div></div>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-red-600 text-lg">Student profile not found</p>
+      <div className="dash-shell">
+        <div className="dash-wrap"><div className="dash-panel"><p className="text-red-600">Student profile not found.</p></div></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
-
-      {/* ================= HEADER ================= */}
-      <header className="sticky top-0 z-50 bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg p-5">
-        <div className="max-w-[1200px] mx-auto flex justify-between items-center gap-3">
-          <h1 className="text-2xl font-semibold">📚 Student Dashboard</h1>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => navigate("/student/profile")}
-              className="px-4 py-2 bg-white/20 border border-white/30 rounded-md text-sm font-medium hover:bg-white/30"
-            >
-              👤 Profile
-            </button>
-
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-red-500/80 rounded-md text-sm font-medium hover:bg-red-600"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* ================= MAIN ================= */}
-      <main className="max-w-[1200px] mx-auto w-full px-5 py-8 flex-1 space-y-8">
-
-        {/* ================= PROFILE ================= */}
-        <section className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
-          <div className="flex flex-col md:flex-row gap-8 items-center mb-8">
-            <div className="w-24 h-24 rounded-full bg-indigo-500 text-white flex items-center justify-center text-4xl font-bold shadow-md">
-              {profile.name.charAt(0).toUpperCase()}
-            </div>
-
-            <div className="flex-1">
-              <h2 className="text-3xl font-semibold text-gray-800 mb-4">
-                {profile.name}
-              </h2>
-
-              <div className="flex flex-wrap gap-2">
-                <span className="px-4 py-2 bg-slate-100 border rounded-full text-sm text-gray-600">
-                  📍 {profile.branch}
-                </span>
-                <span className="px-4 py-2 bg-slate-100 border rounded-full text-sm text-gray-600">
-                  📖 Semester {profile.semester}
-                </span>
-                {profile.section && (
-                  <span className="px-4 py-2 bg-slate-100 border rounded-full text-sm text-gray-600">
-                    👥 Section {profile.section}
-                  </span>
-                )}
-                {profile.group && (
-                  <span className="px-4 py-2 bg-slate-100 border rounded-full text-sm text-gray-600">
-                    🎯 Group {profile.group}
-                  </span>
-                )}
+    <div className="dash-shell">
+      <div className="dash-wrap">
+        <div className="dash-panel">
+          <div className="dash-head">
+            <div>
+              <h1 className="dash-title">Student Dashboard</h1>
+              <p className="dash-sub">Track subjects and attendance quickly.</p>
+              <div style={{ marginTop: 8 }}>
+                <BackendStatusBadge />
               </div>
             </div>
+            <div className="dash-actions">
+              <button onClick={() => setShowScanner(true)} className="dash-btn-primary">Scan QR</button>
+              <button onClick={() => navigate("/student/profile")} className="dash-btn-ghost">Profile</button>
+              <button onClick={logout} className="dash-btn-ghost">Logout</button>
+            </div>
           </div>
 
-          {/* ================= BUTTONS ================= */}
-          <div className="flex flex-wrap gap-4 pt-6 border-t">
-            <button
-              onClick={() => setShowScanner(true)}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
-            >
-              📷 Scan QR
-            </button>
+          <div className="dash-card" style={{ marginTop: 16 }}>
+            <h2 className="text-xl font-semibold">{profile.name}</h2>
+            <p className="dash-sub" style={{ marginTop: 4 }}>
+              {profile.branch} | Semester {profile.semester}
+              {profile.section ? ` | Section ${profile.section}` : ""}
+              {profile.group ? ` | Group ${profile.group}` : ""}
+            </p>
+          </div>
 
-            <button
-              onClick={loadOverallAttendance}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700"
-            >
-              📊 Overall Attendance %
+          <div className="dash-actions" style={{ marginTop: 12 }}>
+            <button onClick={loadOverallAttendance} className="dash-btn-primary" disabled={overallLoading}>
+              {overallLoading ? "Loading Overall..." : "Overall Attendance %"}
             </button>
           </div>
-        </section>
 
-        {/* ================= OVERALL ATTENDANCE ================= */}
-        {showOverall && (
-          <section className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-800 mb-6">
-              📊 Overall Attendance Percentage
-            </h3>
-
-            <div className="space-y-4">
-              {overallData.map(sub => (
-                <div key={sub.code}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium">
-                      {sub.code} – {sub.name}
-                    </span>
-                    <span className="font-semibold">{sub.percentage}%</span>
+          {showOverall && (
+            <div className="dash-card" style={{ marginTop: 14 }}>
+              <h3 className="text-lg font-semibold">Overall Attendance</h3>
+              {overallData.length > 0 && (
+                <div className="dash-grid" style={{ marginTop: 12 }}>
+                  <div className="dash-chart-card" style={{ height: 260 }}>
+                    <p className="text-sm font-semibold text-slate-700">Subject-wise Percentage</p>
+                    <ResponsiveContainer width="100%" height="88%">
+                      <BarChart data={overallData}>
+                        <XAxis dataKey="code" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <Bar dataKey="percentage" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-
-                  <div className="w-full bg-slate-200 rounded-full h-3">
-                    <div
-                      className={`h-3 rounded-full ${
-                        sub.percentage >= 75
-                          ? "bg-green-600"
-                          : "bg-red-500"
-                      }`}
-                      style={{ width: `${sub.percentage}%` }}
-                    />
+                  <div className="dash-chart-card" style={{ height: 260 }}>
+                    <p className="text-sm font-semibold text-slate-700">Healthy vs Risk</p>
+                    <ResponsiveContainer width="100%" height="88%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: ">= 75%", value: overallData.filter((s) => s.percentage >= 75).length },
+                            { name: "< 75%", value: overallData.filter((s) => s.percentage < 75).length }
+                          ]}
+                          dataKey="value"
+                          nameKey="name"
+                          outerRadius={76}
+                          innerRadius={44}
+                          label
+                        >
+                          <Cell fill="#16a34a" />
+                          <Cell fill="#ef4444" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
+                </div>
+              )}
+              <div className="dash-grid">
+                {overallData.map((sub) => (
+                  <div key={sub.code} className="dash-card">
+                    <div className="text-sm font-semibold">{sub.code} - {sub.name}</div>
+                    <div className="text-sm" style={{ marginTop: 6 }}>{sub.percentage}%</div>
+                    <div className="dash-progress" style={{ marginTop: 8 }}>
+                      <span style={{ width: `${sub.percentage}%`, background: sub.percentage >= 75 ? "#16a34a" : "#ef4444" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="dash-list">
+            <h3 className="text-xl font-semibold">My Subjects</h3>
+            <div className="dash-grid">
+              {subjects.map((sub) => (
+                <div
+                  key={sub.subjectCode}
+                  onClick={() => loadSubjectAttendance(sub.subjectCode, sub.subjectName)}
+                  className="dash-card dash-click"
+                  style={selectedSubject === sub.subjectName ? { borderColor: "#7f9dff", background: "#f3f6ff" } : {}}
+                >
+                  <div className="text-base font-bold text-blue-700">{sub.subjectCode}</div>
+                  <p className="dash-sub" style={{ marginTop: 6 }}>{sub.subjectName}</p>
                 </div>
               ))}
             </div>
-          </section>
-        )}
-
-        {/* ================= SUBJECTS ================= */}
-        <section>
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">
-            📚 My Subjects
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {subjects.map(sub => (
-              <div
-                key={sub.subjectCode}
-                onClick={() =>
-                  loadSubjectAttendance(sub.subjectCode, sub.subjectName)
-                }
-                className={`cursor-pointer p-6 rounded-xl border-2 transition ${
-                  selectedSubject === sub.subjectName
-                    ? "border-indigo-500 bg-indigo-50 shadow-md"
-                    : "border-gray-200 bg-white hover:shadow-lg hover:-translate-y-1"
-                }`}
-              >
-                <div className="text-lg font-bold text-indigo-500 mb-2">
-                  {sub.subjectCode}
-                </div>
-                <p className="text-gray-600 font-medium mb-4">
-                  {sub.subjectName}
-                </p>
-                <div className="text-2xl text-indigo-400/60">→</div>
-              </div>
-            ))}
           </div>
-        </section>
 
-        {/* ================= ATTENDANCE DETAILS ================= */}
-        {subjectAttendance && (
-          <section className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-800 mb-6">
-              📊 Attendance – {selectedSubject}
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-              <Summary icon="📊" label="Total Classes" value={subjectAttendance.summary.total} />
-              <Summary icon="✓" label="Present" value={subjectAttendance.summary.present} />
-              <Summary icon="✗" label="Absent" value={subjectAttendance.summary.absent} />
-              <Summary icon="%" label="Attendance %" value={`${subjectAttendance.summary.percentage}%`} />
+          {subjectAttendance && (
+            <div className="dash-card" style={{ marginTop: 14 }}>
+              <h3 className="text-lg font-semibold">Attendance - {selectedSubject}</h3>
+              <div className="dash-chart-card" style={{ marginTop: 12, height: 220 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Present", value: subjectAttendance.summary.present },
+                        { name: "Absent", value: subjectAttendance.summary.absent }
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      outerRadius={72}
+                      innerRadius={38}
+                      label
+                    >
+                      <Cell fill="#16a34a" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="dash-grid">
+                <Summary label="Total" value={subjectAttendance.summary.total} />
+                <Summary label="Present" value={subjectAttendance.summary.present} />
+                <Summary label="Absent" value={subjectAttendance.summary.absent} />
+                <Summary label="Percent" value={`${subjectAttendance.summary.percentage}%`} />
+              </div>
             </div>
-          </section>
-        )}
-      </main>
+          )}
+        </div>
+      </div>
 
-      {/* ================= QR MODAL ================= */}
-      {showScanner && (
-        <QrScannerModal onClose={() => setShowScanner(false)} />
-      )}
-
-      <footer className="border-t text-center py-5 text-sm text-gray-400">
-        © 2026 ClassKnot • Attendance Management System
-      </footer>
+      {showScanner && <QrScannerModal onClose={() => setShowScanner(false)} />}
     </div>
   );
 }
 
-/* ================= HELPERS ================= */
-function Summary({ icon, label, value }) {
+function Summary({ label, value }) {
   return (
-    <div className="p-5 bg-slate-50 rounded-lg text-center border-l-4 border-indigo-500">
-      <div className="text-3xl mb-2">{icon}</div>
-      <div className="text-xs uppercase tracking-wide text-gray-500 mb-1">
-        {label}
-      </div>
-      <div className="text-2xl font-bold">{value}</div>
+    <div className="dash-card">
+      <div className="text-xs text-slate-500 uppercase">{label}</div>
+      <div className="text-2xl font-bold mt-1">{value}</div>
     </div>
   );
 }

@@ -1,25 +1,31 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import "../../styles/teacherExperience.css";
 
 export default function HodProfile() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    api.get("/hod/me")
-      .then(res => setProfile(res.data))
-      .finally(() => setLoading(false));
+    api
+      .get("/hod/me")
+      .then((res) => setProfile(res.data))
+      .catch(() => setProfile({}))
+      .finally(() => setLoadingProfile(false));
   }, []);
 
   const handleChangePassword = async () => {
-    setMessage("");
     setError("");
+    setSuccess("");
 
     if (!oldPassword || !newPassword || !confirmPassword) {
       return setError("All fields are required");
@@ -29,98 +35,94 @@ export default function HodProfile() {
       return setError("New passwords do not match");
     }
 
+    setLoading(true);
     try {
       const res = await api.put("/hod/change-password", {
         oldPassword,
         newPassword
       });
 
-      setMessage(res.data.message);
+      setSuccess(res.data.message || "Password updated successfully");
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to update password"
-      );
+      setError(err.response?.data?.message || "Failed to update password");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  const logout = () => {
+    localStorage.clear();
+    navigate("/");
+  };
+
+  if (loadingProfile) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        Loading profile...
+      <div className="teacher-shell">
+        <div className="teacher-wrap" style={{ maxWidth: 760 }}>
+          <div className="teacher-panel">
+            <p className="teacher-sub">Loading profile...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow p-6 space-y-6">
+    <div className="teacher-shell">
+      <div className="teacher-wrap" style={{ maxWidth: 760 }}>
+        <div className="teacher-panel">
+          <h1 className="teacher-title">HOD Profile</h1>
+          <p className="teacher-sub">Only password change is allowed from this section.</p>
 
-        {/* PROFILE INFO */}
-        <div>
-          <h1 className="text-xl font-semibold text-gray-800">
-            HOD Profile
-          </h1>
+          <div className="teacher-panel" style={{ marginTop: 14 }}>
+            <p className="text-sm"><span className="font-semibold">College ID:</span> {profile?.collegeId || "-"}</p>
+            <p className="text-sm mt-1"><span className="font-semibold">Role:</span> {profile?.role || "HOD"}</p>
+          </div>
 
-          <p className="mt-2 text-sm">
-            <span className="font-medium">College ID:</span>{" "}
-            {profile.collegeId}
-          </p>
+          <div className="teacher-panel" style={{ marginTop: 14 }}>
+            <h2 className="text-xl font-semibold">Change Password</h2>
 
-          <p className="text-sm">
-            <span className="font-medium">Role:</span>{" "}
-            {profile.role}
-          </p>
+            <div className="teacher-grid" style={{ marginTop: 12 }}>
+              <input
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                placeholder="Old password"
+                className="input-field"
+              />
+
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password"
+                className="input-field"
+              />
+
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                className="input-field"
+              />
+            </div>
+
+            {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+            {success && <p className="text-sm text-green-600 mt-3">{success}</p>}
+
+            <div className="teacher-actions">
+              <button onClick={handleChangePassword} disabled={loading} className="btn-primary">
+                {loading ? "Updating..." : "Update Password"}
+              </button>
+              <button onClick={() => navigate("/hod") } className="btn-ghost">Back</button>
+              <button onClick={logout} className="btn-ghost">Logout</button>
+            </div>
+          </div>
         </div>
-
-        {/* CHANGE PASSWORD */}
-        <div className="border-t pt-4 space-y-3">
-          <h2 className="text-lg font-medium text-gray-800">
-            Change Password
-          </h2>
-
-          <input
-            type="password"
-            placeholder="Old Password"
-            value={oldPassword}
-            onChange={e => setOldPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          <input
-            type="password"
-            placeholder="New Password"
-            value={newPassword}
-            onChange={e => setNewPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          <input
-            type="password"
-            placeholder="Confirm New Password"
-            value={confirmPassword}
-            onChange={e => setConfirmPassword(e.target.value)}
-            className="w-full px-3 py-2 border rounded-lg text-sm"
-          />
-
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
-
-          {message && (
-            <p className="text-sm text-green-600">{message}</p>
-          )}
-
-          <button
-            onClick={handleChangePassword}
-            className="w-full mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            Update Password
-          </button>
-        </div>
-
       </div>
     </div>
   );

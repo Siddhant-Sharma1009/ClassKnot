@@ -1,98 +1,104 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import QRCode from "react-qr-code";
 import api from "../../api/axios";
-
-const ROW_CHANGE_SECONDS = 15;
+import "../../styles/qrExperience.css";
 
 export default function LiveQR() {
   const { qrSessionId } = useParams();
   const navigate = useNavigate();
 
   const [qrData, setQrData] = useState(null);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [seconds, setSeconds] = useState(10);
+  const [ending, setEnding] = useState(false);
+  const [qrSize, setQrSize] = useState(420);
 
-  const expiryRef = useRef(0);
-  const countdownRef = useRef(null);
-  const rowRef = useRef(null);
-
-  /* Fetch QR ONCE per cycle */
-  const fetchQR = async () => {
-    const res = await api.get(`/qr/generate/${qrSessionId}`);
-    setQrData(res.data);
-    expiryRef.current = res.data.expiresAt;
-
-    // initialize countdown immediately (smooth start)
-    const diff = expiryRef.current - Date.now();
-    setSecondsLeft(Math.max(0, Math.floor(diff / 1000)));
-  };
-
-  /* Smooth 1-second countdown */
   useEffect(() => {
+    const setResponsiveSize = () => {
+      const minEdge = Math.min(window.innerWidth, window.innerHeight);
+      const next = Math.max(300, Math.min(900, Math.floor(minEdge * 0.72)));
+      setQrSize(next);
+    };
+
+    setResponsiveSize();
+    window.addEventListener("resize", setResponsiveSize);
+    return () => window.removeEventListener("resize", setResponsiveSize);
+  }, []);
+
+  useEffect(() => {
+    const fetchQR = async () => {
+      const res = await api.get(`/qr/generate/${qrSessionId}`);
+      setQrData(res.data);
+      setSeconds(Math.max(0, Math.ceil((res.data.expiresAt - Date.now()) / 1000)));
+    };
+
     fetchQR();
+    const qrInterval = setInterval(fetchQR, 5000);
 
-    countdownRef.current = setInterval(() => {
-      const diff = expiryRef.current - Date.now();
-      const remaining = Math.max(0, Math.floor(diff / 1000));
-
-      setSecondsLeft(prev => {
-        // avoid unnecessary re-renders
-        return prev !== remaining ? remaining : prev;
-      });
-
-      if (remaining === 0) {
-        fetchQR(); // QR changes calmly AFTER countdown ends
-      }
-    }, 1000);
-
-    return () => clearInterval(countdownRef.current);
+    return () => clearInterval(qrInterval);
   }, [qrSessionId]);
 
-  /* Row change (independent, slow, stable) */
   useEffect(() => {
-    rowRef.current = setInterval(async () => {
-      const res = await api.post(`/qr/next-row/${qrSessionId}`);
-      if (!res.data.isActive) {
-        navigate(`/teacher/qr/preview/${qrSessionId}`);
-      }
-    }, ROW_CHANGE_SECONDS * 1000);
+    const timer = setInterval(() => {
+      setSeconds((current) => {
+        if (!qrData?.expiresAt) return current;
+        return Math.max(0, Math.ceil((qrData.expiresAt - Date.now()) / 1000));
+      });
+    }, 250);
+    return () => clearInterval(timer);
+  }, [qrData]);
 
-    return () => clearInterval(rowRef.current);
-  }, [qrSessionId, navigate]);
+  const endSession = async () => {
+    try {
+      setEnding(true);
+      await api.post(`/qr/end/${qrSessionId}`);
+      navigate(`/teacher/qr/preview/${qrSessionId}`);
+    } catch {
+      alert("Failed to end QR session");
+    } finally {
+      setEnding(false);
+    }
+  };
 
   if (!qrData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-gray-500">Loading QR…</p>
+      <div className="qr-screen">
+        <p className="text-gray-500">Loading QR...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 text-center w-full max-w-[420px]">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-          QR Attendance
-        </h2>
+    <div className="qr-screen">
+      <div className="qr-card">
+        <h1 className="qr-title">Live Attendance QR</h1>
+        <p className="qr-sub">Keep this visible on the smart board for students to scan.</p>
 
-        <p className="text-sm text-gray-600 mb-1">
-          Row: <span className="font-medium">{qrData.row}</span>
-        </p>
-
-        <p className="text-sm text-gray-600 mb-6">
-          Valid for:{" "}
-          <span className="font-semibold text-indigo-600">
-            {secondsLeft}s
-          </span>
-        </p>
-
-        <div className="flex justify-center bg-white p-4 rounded-lg border border-gray-200">
-          <QRCode value={JSON.stringify(qrData)} size={256} />
+        <div className="countdown-chip">
+          Validity Window <span>{seconds}s</span>
         </div>
 
-        <p className="mt-5 text-xs text-gray-400">
-          Smooth countdown · Server-controlled expiry
-        </p>
+        <div className="qr-grid">
+          <div className="qr-panel">
+            <div className="qr-frame">
+              <QRCode value={JSON.stringify(qrData)} size={qrSize} level="H" />
+            </div>
+            <p className="qr-sub" style={{ textAlign: "center", marginBottom: 0 }}>
+              QR expires in 10s and auto-refreshes every 5s.
+            </p>
+          </div>
+
+          <div className="qr-panel">
+            <div className="action-stack">
+              <button onClick={endSession} disabled={ending} className="btn-main">
+                {ending ? "Ending Session..." : "Finish Session"}
+              </button>
+              <button onClick={() => navigate("/teacher")} className="btn-alt">
+                Go To Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
