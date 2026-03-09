@@ -33,20 +33,6 @@
   font-size: clamp(14px, 1.6vw, 20px);
 }
 
-.countdown-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid #c8d5ff;
-  background: #eef3ff;
-  font-size: clamp(14px, 1.5vw, 20px);
-  font-weight: 600;
-  color: #1f2d62;
-}
-
 .qr-grid {
   margin-top: 22px;
   display: grid;

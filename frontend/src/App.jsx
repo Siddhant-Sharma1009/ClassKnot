@@ -1,41 +1,27 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
-/* AUTH */
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import ProtectedRoute from "./auth/ProtectedRoute";
-
-/* TEACHER PAGES */
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
 import CreateSession from "./pages/teacher/CreateSession";
 import ClassDetails from "./pages/teacher/ClassDetails";
 import ManualAttendance from "./pages/teacher/ManualAttendance";
 import AttendanceSummary from "./pages/teacher/AttendanceSummary";
 import TeacherProfile from "./pages/teacher/TeacherProfile";
-
-/* QR – TEACHER */
 import StartQR from "./pages/teacher/StartQR";
 import LiveQR from "./pages/teacher/LiveQR";
 import QRPreview from "./pages/teacher/QRPreview";
-
-/* STUDENT PAGES */
 import StudentDashboard from "./pages/student/StudentDashboard";
 import ScanQR from "./pages/student/ScanQR";
 import StudentProfile from "./pages/student/StudentProfile";
-
-/* HOD PAGES */
 import HodDashboard from "./pages/hod/hodDashboard";
 import HodProfile from "./pages/hod/hodProfile";
 import SubjectAttendance from "./pages/hod/SubjectAttendance";
-
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ================= AUTH ================= */}
         <Route path="/" element={<Login />} />
-
-        {/* ================= STUDENT ================= */}
         <Route
           path="/student"
           element={
@@ -44,7 +30,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/student/scan"
           element={
@@ -53,11 +38,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route path="/student/profile" element={<StudentProfile />} />
-
-
-        {/* ================= TEACHER ================= */}
         <Route
           path="/teacher"
           element={
@@ -66,7 +47,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/create"
           element={
@@ -75,7 +55,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/class/:classId"
           element={
@@ -84,7 +63,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/attendance/:slotId"
           element={
@@ -93,8 +71,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* ===== QR ATTENDANCE – TEACHER ===== */}
         <Route
           path="/teacher/qr/start/:slotId"
           element={
@@ -103,7 +79,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/qr/live/:qrSessionId"
           element={
@@ -112,7 +87,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/qr/preview/:qrSessionId"
           element={
@@ -121,7 +95,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/attendance-summary/:classId"
           element={
@@ -130,7 +103,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/teacher/profile"
           element={
@@ -139,10 +111,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* ================= HOD (FIXED) ================= */}
-
-        {/* redirect /hod → /hod/dashboard */}
         <Route
           path="/hod"
           element={
@@ -159,7 +127,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/hod/profile"
           element={
@@ -176,7 +143,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
       </Routes>
     </BrowserRouter>
   );

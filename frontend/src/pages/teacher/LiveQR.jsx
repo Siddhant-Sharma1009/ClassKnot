@@ -9,7 +9,6 @@ export default function LiveQR() {
   const navigate = useNavigate();
 
   const [qrData, setQrData] = useState(null);
-  const [seconds, setSeconds] = useState(10);
   const [ending, setEnding] = useState(false);
   const [qrSize, setQrSize] = useState(420);
 
@@ -29,7 +28,6 @@ export default function LiveQR() {
     const fetchQR = async () => {
       const res = await api.get(`/qr/generate/${qrSessionId}`);
       setQrData(res.data);
-      setSeconds(Math.max(0, Math.ceil((res.data.expiresAt - Date.now()) / 1000)));
     };
 
     fetchQR();
@@ -37,16 +35,6 @@ export default function LiveQR() {
 
     return () => clearInterval(qrInterval);
   }, [qrSessionId]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSeconds((current) => {
-        if (!qrData?.expiresAt) return current;
-        return Math.max(0, Math.ceil((qrData.expiresAt - Date.now()) / 1000));
-      });
-    }, 250);
-    return () => clearInterval(timer);
-  }, [qrData]);
 
   const endSession = async () => {
     try {
@@ -73,10 +61,6 @@ export default function LiveQR() {
       <div className="qr-card">
         <h1 className="qr-title">Live Attendance QR</h1>
         <p className="qr-sub">Keep this visible on the smart board for students to scan.</p>
-
-        <div className="countdown-chip">
-          Validity Window <span>{seconds}s</span>
-        </div>
 
         <div className="qr-grid">
           <div className="qr-panel">

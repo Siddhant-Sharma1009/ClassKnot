@@ -7,14 +7,37 @@ const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 15000);
 
 router.post("/start", async (req, res) => {
   try {
-    const { url, profile } = req.body;
-    if (!url) return res.status(400).json({ message: "Camera URL required" });
+    const { source, profile, sourceType } = req.body;
 
-    await axios.post(`${AI_SERVER}/start`, { url, profile }, { timeout: AI_TIMEOUT_MS });
+    await axios.post(`${AI_SERVER}/start`, { source, profile, sourceType }, { timeout: AI_TIMEOUT_MS });
     return res.json({ message: "AI started" });
   } catch (err) {
     console.error("AI /start proxy error:", err?.message || err);
     return res.status(502).json({ message: "Failed to reach AI service" });
+  }
+});
+
+router.post("/count-frame", async (req, res) => {
+  try {
+    const { image, profile, source } = req.body;
+    if (!image) {
+      return res.status(400).json({ message: "Camera frame required" });
+    }
+
+    const aiRes = await axios.post(
+      `${AI_SERVER}/analyze-frame`,
+      { image, profile, source },
+      { timeout: AI_TIMEOUT_MS }
+    );
+    return res.json(aiRes.data);
+  } catch (err) {
+    console.error("AI /count-frame proxy error:", err?.message || err);
+    return res.status(502).json({
+      count: 0,
+      instant_count: 0,
+      running: false,
+      error: "AI service unavailable"
+    });
   }
 });
 
