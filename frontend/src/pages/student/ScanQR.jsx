@@ -2,6 +2,16 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useEffect, useRef } from "react";
 import api from "../../api/axios";
 
+const formatMediaError = (err) => {
+  const name = err?.name || "";
+  if (name === "NotAllowedError") return "Camera permission denied. Please allow access and try again.";
+  if (name === "NotFoundError") return "No camera device found on this device.";
+  if (name === "NotReadableError") return "Camera is already in use by another app.";
+  if (name === "OverconstrainedError") return "Camera does not support the requested settings.";
+  if (name === "SecurityError") return "Camera access requires HTTPS or localhost.";
+  return "Camera not accessible.";
+};
+
 export default function QrScannerModal({ onClose }) {
   const scannerRef = useRef(null);
   const startedRef = useRef(false);
@@ -28,57 +38,66 @@ export default function QrScannerModal({ onClose }) {
 
     const startScanner = async () => {
       try {
-        await scanner.start(
-          {
-            facingMode: { ideal: "environment" },
-            focusMode: "continuous",
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          {
-            fps: 12,
-            aspectRatio: 1.777778,
-            disableFlip: false,
-            formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-          },
-          async (decodedText) => {
-            if (scannedRef.current) return;
+        const config = {
+          fps: 12,
+          aspectRatio: 1.777778,
+          disableFlip: false,
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        };
 
-            try {
-              const data = JSON.parse(decodedText);
+        const onDecode = async (decodedText) => {
+          if (scannedRef.current) return;
 
-              if (!data.qrSessionId || !data.attendanceSlotId || !data.token) {
-                return;
-              }
+          try {
+            const data = JSON.parse(decodedText);
 
-              scannedRef.current = true;
-              await api.post("/qr/submit", {
-                qrSessionId: data.qrSessionId,
-                attendanceSlotId: data.attendanceSlotId,
-                token: data.token,
-                expiresAt: data.expiresAt
-              });
-
-              alert("Attendance marked successfully");
-              await stopScannerSafely();
-              onClose();
-            } catch (err) {
-              const message = err.response?.data?.message || "Failed to mark attendance";
-
-              if (message === "QR token invalid" || message === "QR expired") {
-                scannedRef.current = false;
-                return;
-              }
-
-              alert(message);
-              scannedRef.current = false;
+            if (!data.qrSessionId || !data.attendanceSlotId || !data.token) {
+              return;
             }
-          },
-          () => {}
-        );
-      } catch {
-        alert("Camera not accessible");
+
+            scannedRef.current = true;
+            await api.post("/qr/submit", {
+              qrSessionId: data.qrSessionId,
+              attendanceSlotId: data.attendanceSlotId,
+              token: data.token,
+              expiresAt: data.expiresAt
+            });
+
+            alert("Attendance marked successfully");
+            await stopScannerSafely();
+            onClose();
+          } catch (err) {
+            const message = err.response?.data?.message || "Failed to mark attendance";
+
+            if (message === "QR token invalid" || message === "QR expired") {
+              scannedRef.current = false;
+              return;
+            }
+
+            alert(message);
+            scannedRef.current = false;
+          }
+        };
+
+        let started = false;
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras && cameras.length > 0) {
+            const preferred =
+              cameras.find((cam) => /rear|back|environment/i.test(cam.label || "")) || cameras[0];
+            await scanner.start(preferred.id, config, onDecode, () => {});
+            started = true;
+          }
+        } catch {
+          // Fall back to facingMode if camera listing fails.
+        }
+
+        if (!started) {
+          await scanner.start({ facingMode: "environment" }, config, onDecode, () => {});
+        }
+      } catch (err) {
+        alert(formatMediaError(err));
         await stopScannerSafely();
         onClose();
       }

@@ -3,6 +3,16 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import "../../styles/qrExperience.css";
 
+const formatMediaError = (err) => {
+  const name = err?.name || "";
+  if (name === "NotAllowedError") return "Camera permission denied. Please allow access and try again.";
+  if (name === "NotFoundError") return "No camera device found on this device.";
+  if (name === "NotReadableError") return "Camera is already in use by another app.";
+  if (name === "OverconstrainedError") return "Selected camera does not support the requested settings.";
+  if (name === "SecurityError") return "Camera access requires HTTPS or localhost.";
+  return "Failed to start the selected camera. Try another device.";
+};
+
 export default function QRPreview() {
   const { qrSessionId } = useParams();
   const navigate = useNavigate();
@@ -176,27 +186,36 @@ export default function QRPreview() {
 
       await stopCameraStream();
 
-      const constraints = selectedCameraId
-        ? {
-            audio: false,
-            video: {
-              deviceId: { exact: selectedCameraId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 15, max: 24 }
-            }
-          }
-        : {
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 15, max: 24 }
-            }
-          };
+      const baseVideo = {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 15, max: 24 }
+      };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const constraintOptions = selectedCameraId
+        ? [
+            { audio: false, video: { ...baseVideo, deviceId: { exact: selectedCameraId } } },
+            { audio: false, video: { ...baseVideo, deviceId: { ideal: selectedCameraId } } },
+            { audio: false, video: { ...baseVideo, facingMode: { ideal: "environment" } } }
+          ]
+        : [{ audio: false, video: { ...baseVideo, facingMode: { ideal: "environment" } } }];
+
+      let stream = null;
+      let lastError = null;
+
+      for (const constraints of constraintOptions) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (stream) break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (!stream) {
+        throw lastError || new Error("Camera start failed");
+      }
+
       streamRef.current = stream;
 
       if (videoRef.current) {
@@ -213,8 +232,8 @@ export default function QRPreview() {
       setAiRunning(true);
       frameTimerRef.current = setInterval(captureAndCountFrame, 1500);
       await captureAndCountFrame();
-    } catch {
-      setCameraError("Failed to start the selected camera. Try another device.");
+    } catch (err) {
+      setCameraError(formatMediaError(err));
       await stopCameraStream();
     } finally {
       setAiLoading(false);
